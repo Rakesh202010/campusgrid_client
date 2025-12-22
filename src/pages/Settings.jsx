@@ -1,13 +1,47 @@
-import { User, Bell, Shield, Globe, Palette } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { User, Bell, Calendar, Sliders, ChevronRight, BookOpen, Layers, IndianRupee } from 'lucide-react';
 
 const Settings = () => {
+  const navigate = useNavigate();
+
+  const configurationItems = [
+    { 
+      label: 'Academic Sessions', 
+      description: 'Manage academic years and session configurations',
+      icon: Calendar,
+      path: '/settings/academic-sessions',
+      color: 'bg-blue-100 text-blue-600'
+    },
+    { 
+      label: 'Class & Section', 
+      description: 'Configure classes, sections, and structure',
+      icon: BookOpen,
+      path: '/settings/class-configuration',
+      color: 'bg-purple-100 text-purple-600'
+    },
+    { 
+      label: 'Subjects & Curriculum', 
+      description: 'Manage subjects and assign to classes',
+      icon: Layers,
+      path: '/settings/subjects',
+      color: 'bg-indigo-100 text-indigo-600'
+    },
+    { 
+      label: 'Finance & Fees', 
+      description: 'Configure fee types, structures, and discounts',
+      icon: IndianRupee,
+      path: '/settings/fees',
+      color: 'bg-green-100 text-green-600'
+    },
+  ];
+
   const settingsSections = [
     {
       title: 'Profile Settings',
       icon: User,
       items: [
         { label: 'Personal Information', description: 'Update your personal details' },
-        { label: 'Change Password', description: 'Update your account password' },
+        { label: 'Change Password', description: 'Update your account password', path: '/change-password' },
         { label: 'Email Preferences', description: 'Manage email notifications' },
       ],
     },
@@ -20,24 +54,6 @@ const Settings = () => {
         { label: 'SMS Notifications', description: 'Set up SMS alerts' },
       ],
     },
-    {
-      title: 'Security',
-      icon: Shield,
-      items: [
-        { label: 'Two-Factor Authentication', description: 'Enable 2FA for your account' },
-        { label: 'Login Activity', description: 'View recent login attempts' },
-        { label: 'API Keys', description: 'Manage API access keys' },
-      ],
-    },
-    {
-      title: 'Preferences',
-      icon: Palette,
-      items: [
-        { label: 'Language', description: 'Select your preferred language' },
-        { label: 'Timezone', description: 'Set your timezone' },
-        { label: 'Theme', description: 'Choose your theme' },
-      ],
-    },
   ];
 
   return (
@@ -46,6 +62,39 @@ const Settings = () => {
       <div>
         <h2 className="text-2xl font-semibold text-gray-800">Settings</h2>
         <p className="text-gray-600 mt-1">Manage your account settings and preferences</p>
+      </div>
+
+      {/* Configuration Section */}
+      <div className="card">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+            <Sliders className="w-5 h-5 text-purple-600" />
+          </div>
+          <h3 className="text-lg font-semibold text-gray-800">Configuration</h3>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {configurationItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.label}
+                onClick={() => navigate(item.path)}
+                className="flex items-center gap-4 p-4 rounded-xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50/50 transition-all group text-left"
+              >
+                <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${item.color}`}>
+                  <Icon className="w-6 h-6" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-gray-800 group-hover:text-blue-600 transition-colors">
+                    {item.label}
+                  </p>
+                  <p className="text-sm text-gray-500 truncate">{item.description}</p>
+                </div>
+                <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-blue-600 transition-colors" />
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Settings Sections */}
@@ -64,6 +113,7 @@ const Settings = () => {
                 {section.items.map((item, index) => (
                   <div
                     key={index}
+                    onClick={() => item.path && navigate(item.path)}
                     className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer group"
                   >
                     <div className="flex-1">
@@ -72,9 +122,7 @@ const Settings = () => {
                       </p>
                       <p className="text-sm text-gray-600">{item.description}</p>
                     </div>
-                    <button className="text-gray-400 group-hover:text-blue-600 transition-colors">
-                      →
-                    </button>
+                    <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-blue-600 transition-colors" />
                   </div>
                 ))}
               </div>
