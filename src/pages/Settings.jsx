@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { User, Bell, Calendar, Sliders, ChevronRight, BookOpen, Layers, IndianRupee } from 'lucide-react';
+import { User, Bell, Calendar, Sliders, ChevronRight, BookOpen, Layers, IndianRupee, Users } from 'lucide-react';
 
 const Settings = () => {
   const navigate = useNavigate();
@@ -32,6 +32,13 @@ const Settings = () => {
       icon: IndianRupee,
       path: '/settings/fees',
       color: 'bg-green-100 text-green-600'
+    },
+    { 
+      label: 'People & Users', 
+      description: 'Manage teachers, staff, parents, and custom roles',
+      icon: Users,
+      path: '/settings/people',
+      color: 'bg-orange-100 text-orange-600'
     },
   ];
 

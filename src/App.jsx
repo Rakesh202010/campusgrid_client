@@ -18,6 +18,7 @@ import AcademicSessions from './pages/AcademicSessions';
 import ClassConfiguration from './pages/ClassConfiguration';
 import SubjectConfiguration from './pages/SubjectConfiguration';
 import FeeConfiguration from './pages/FeeConfiguration';
+import PeopleConfiguration from './pages/PeopleConfiguration';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -93,6 +94,7 @@ function App() {
           <Route path="settings/class-configuration" element={<ClassConfiguration />} />
           <Route path="settings/subjects" element={<SubjectConfiguration />} />
           <Route path="settings/fees" element={<FeeConfiguration />} />
+          <Route path="settings/people" element={<PeopleConfiguration />} />
           <Route path="change-password" element={<ChangePassword />} />
         </Route>
 

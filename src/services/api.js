@@ -85,7 +85,12 @@ export const students = {
 
 // Teachers APIs
 export const teachers = {
-  getAll: () => apiRequest('/api/teachers'),
+  getAll: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/teachers${queryString ? `?${queryString}` : ''}`);
+  },
+
+  getStats: () => apiRequest('/api/teachers/stats'),
   
   getById: (id) => apiRequest(`/api/teachers/${id}`),
   
@@ -97,7 +102,7 @@ export const teachers = {
   
   update: (id, teacherData) =>
     apiRequest(`/api/teachers/${id}`, {
-      method: 'PATCH',
+      method: 'PUT',
       body: JSON.stringify(teacherData),
     }),
   
@@ -406,6 +411,81 @@ export const fees = {
     }),
 };
 
+// People & User Configuration
+export const people = {
+  // Stats
+  getStats: () => apiRequest('/api/people/stats'),
+
+  // User Roles
+  getRoles: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/people/roles${queryString ? `?${queryString}` : ''}`);
+  },
+
+  createRole: (data) =>
+    apiRequest('/api/people/roles', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  updateRole: (id, data) =>
+    apiRequest(`/api/people/roles/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  deleteRole: (id) =>
+    apiRequest(`/api/people/roles/${id}`, {
+      method: 'DELETE',
+    }),
+
+  // Staff Members
+  getStaff: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/people/staff${queryString ? `?${queryString}` : ''}`);
+  },
+
+  createStaff: (data) =>
+    apiRequest('/api/people/staff', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  updateStaff: (id, data) =>
+    apiRequest(`/api/people/staff/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  deleteStaff: (id) =>
+    apiRequest(`/api/people/staff/${id}`, {
+      method: 'DELETE',
+    }),
+
+  // Parents
+  getParents: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/people/parents${queryString ? `?${queryString}` : ''}`);
+  },
+
+  createParent: (data) =>
+    apiRequest('/api/people/parents', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  updateParent: (id, data) =>
+    apiRequest(`/api/people/parents/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  deleteParent: (id) =>
+    apiRequest(`/api/people/parents/${id}`, {
+      method: 'DELETE',
+    }),
+};
+
 export default {
   auth,
   students,
@@ -415,5 +495,6 @@ export default {
   classConfig,
   subjects,
   fees,
+  people,
 };
 
