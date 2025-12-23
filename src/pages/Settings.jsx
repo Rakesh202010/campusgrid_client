@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { User, Bell, Calendar, Sliders, ChevronRight, BookOpen, Layers, IndianRupee, Users } from 'lucide-react';
+import { User, Bell, Calendar, Sliders, ChevronRight, BookOpen, Layers, IndianRupee, Users, Clock, Building2 } from 'lucide-react';
 
 const Settings = () => {
   const navigate = useNavigate();
@@ -11,6 +11,13 @@ const Settings = () => {
       icon: Calendar,
       path: '/settings/academic-sessions',
       color: 'bg-blue-100 text-blue-600'
+    },
+    { 
+      label: 'Departments', 
+      description: 'Manage academic departments and their heads',
+      icon: Building2,
+      path: '/settings/departments',
+      color: 'bg-teal-100 text-teal-600'
     },
     { 
       label: 'Class & Section', 
@@ -34,11 +41,18 @@ const Settings = () => {
       color: 'bg-green-100 text-green-600'
     },
     { 
-      label: 'People & Users', 
-      description: 'Manage teachers, staff, parents, and custom roles',
+      label: 'Staff & Users', 
+      description: 'Manage non-teaching staff and user roles',
       icon: Users,
       path: '/settings/people',
       color: 'bg-orange-100 text-orange-600'
+    },
+    { 
+      label: 'Class Timings', 
+      description: 'Configure periods, breaks and school schedules',
+      icon: Clock,
+      path: '/settings/class-timings',
+      color: 'bg-pink-100 text-pink-600'
     },
   ];
 

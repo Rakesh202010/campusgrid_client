@@ -19,6 +19,9 @@ import ClassConfiguration from './pages/ClassConfiguration';
 import SubjectConfiguration from './pages/SubjectConfiguration';
 import FeeConfiguration from './pages/FeeConfiguration';
 import PeopleConfiguration from './pages/PeopleConfiguration';
+import SubjectAssignment from './pages/SubjectAssignment';
+import ClassTimingConfiguration from './pages/ClassTimingConfiguration';
+import DepartmentConfiguration from './pages/DepartmentConfiguration';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -83,6 +86,7 @@ function App() {
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="students" element={<Students />} />
           <Route path="teachers" element={<Teachers />} />
+          <Route path="teachers/subject-assignment" element={<SubjectAssignment />} />
           <Route path="classes" element={<Classes />} />
           <Route path="attendance" element={<Attendance />} />
           <Route path="exams" element={<Exams />} />
@@ -95,6 +99,8 @@ function App() {
           <Route path="settings/subjects" element={<SubjectConfiguration />} />
           <Route path="settings/fees" element={<FeeConfiguration />} />
           <Route path="settings/people" element={<PeopleConfiguration />} />
+          <Route path="settings/class-timings" element={<ClassTimingConfiguration />} />
+          <Route path="settings/departments" element={<DepartmentConfiguration />} />
           <Route path="change-password" element={<ChangePassword />} />
         </Route>
 

@@ -85,31 +85,129 @@ export const students = {
 
 // Teachers APIs
 export const teachers = {
+  // CRUD
   getAll: (params = {}) => {
     const queryString = new URLSearchParams(params).toString();
     return apiRequest(`/api/teachers${queryString ? `?${queryString}` : ''}`);
   },
-
   getStats: () => apiRequest('/api/teachers/stats'),
-  
   getById: (id) => apiRequest(`/api/teachers/${id}`),
-  
-  create: (teacherData) =>
-    apiRequest('/api/teachers', {
-      method: 'POST',
-      body: JSON.stringify(teacherData),
-    }),
-  
-  update: (id, teacherData) =>
-    apiRequest(`/api/teachers/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(teacherData),
-    }),
-  
-  delete: (id) =>
-    apiRequest(`/api/teachers/${id}`, {
-      method: 'DELETE',
-    }),
+  create: (data) => apiRequest('/api/teachers', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id, data) => apiRequest(`/api/teachers/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id) => apiRequest(`/api/teachers/${id}`, { method: 'DELETE' }),
+
+  // Status Management
+  changeStatus: (id, data) => apiRequest(`/api/teachers/${id}/status`, { method: 'POST', body: JSON.stringify(data) }),
+
+  // Subject Assignments
+  getSubjects: (id, params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/teachers/${id}/subjects${queryString ? `?${queryString}` : ''}`);
+  },
+  assignSubject: (id, data) => apiRequest(`/api/teachers/${id}/subjects`, { method: 'POST', body: JSON.stringify(data) }),
+  bulkAssignSubjects: (id, data) => apiRequest(`/api/teachers/${id}/subjects/bulk`, { method: 'POST', body: JSON.stringify(data) }),
+  removeSubject: (teacherId, assignmentId) => apiRequest(`/api/teachers/${teacherId}/subjects/${assignmentId}`, { method: 'DELETE' }),
+
+  // Leave Management
+  getLeaveTypes: () => apiRequest('/api/teachers/leave-types'),
+  createLeaveType: (data) => apiRequest('/api/teachers/leave-types', { method: 'POST', body: JSON.stringify(data) }),
+  getAllLeaveApplications: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/teachers/leave-applications${queryString ? `?${queryString}` : ''}`);
+  },
+  getLeaveBalance: (id, params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/teachers/${id}/leave-balance${queryString ? `?${queryString}` : ''}`);
+  },
+  getLeaveApplications: (id, params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/teachers/${id}/leave-applications${queryString ? `?${queryString}` : ''}`);
+  },
+  applyLeave: (id, data) => apiRequest(`/api/teachers/${id}/leave-applications`, { method: 'POST', body: JSON.stringify(data) }),
+  processLeave: (teacherId, applicationId, data) => apiRequest(`/api/teachers/${teacherId}/leave-applications/${applicationId}`, { method: 'POST', body: JSON.stringify(data) }),
+
+  // Attendance
+  getAttendance: (id, params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/teachers/${id}/attendance${queryString ? `?${queryString}` : ''}`);
+  },
+  getAttendanceSummary: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/teachers/attendance/summary${queryString ? `?${queryString}` : ''}`);
+  },
+  markAttendance: (data) => apiRequest('/api/teachers/attendance/mark', { method: 'POST', body: JSON.stringify(data) }),
+
+  // Qualifications
+  getQualifications: (id) => apiRequest(`/api/teachers/${id}/qualifications`),
+  addQualification: (id, data) => apiRequest(`/api/teachers/${id}/qualifications`, { method: 'POST', body: JSON.stringify(data) }),
+  deleteQualification: (id, qualId) => apiRequest(`/api/teachers/${id}/qualifications/${qualId}`, { method: 'DELETE' }),
+
+  // Experience
+  getExperiences: (id) => apiRequest(`/api/teachers/${id}/experience`),
+  addExperience: (id, data) => apiRequest(`/api/teachers/${id}/experience`, { method: 'POST', body: JSON.stringify(data) }),
+  deleteExperience: (id, expId) => apiRequest(`/api/teachers/${id}/experience/${expId}`, { method: 'DELETE' }),
+
+  // Documents
+  getDocuments: (id) => apiRequest(`/api/teachers/${id}/documents`),
+  addDocument: (id, data) => apiRequest(`/api/teachers/${id}/documents`, { method: 'POST', body: JSON.stringify(data) }),
+  verifyDocument: (id, docId, data) => apiRequest(`/api/teachers/${id}/documents/${docId}/verify`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteDocument: (id, docId) => apiRequest(`/api/teachers/${id}/documents/${docId}`, { method: 'DELETE' }),
+
+  // Login/Credentials
+  createLogin: (id, data) => apiRequest(`/api/teachers/${id}/create-login`, { method: 'POST', body: JSON.stringify(data) }),
+  resetPassword: (id, data) => apiRequest(`/api/teachers/${id}/reset-password`, { method: 'POST', body: JSON.stringify(data) }),
+  toggleLoginAccess: (id, data) => apiRequest(`/api/teachers/${id}/toggle-login`, { method: 'POST', body: JSON.stringify(data) }),
+
+  // Audit Logs
+  getAuditLogs: (id) => apiRequest(`/api/teachers/${id}/audit-logs`),
+
+  // Bulk Operations
+  bulkImport: (data) => apiRequest('/api/teachers/import', { method: 'POST', body: JSON.stringify(data) }),
+  export: (format = 'json') => apiRequest(`/api/teachers/export?format=${format}`),
+};
+
+// Subject Assignments APIs (comprehensive)
+export const subjectAssignments = {
+  // Views
+  getAll: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/subject-assignments${queryString ? `?${queryString}` : ''}`);
+  },
+  getByTeacher: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/subject-assignments/by-teacher${queryString ? `?${queryString}` : ''}`);
+  },
+  getBySubject: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/subject-assignments/by-subject${queryString ? `?${queryString}` : ''}`);
+  },
+  getByClass: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/subject-assignments/by-class${queryString ? `?${queryString}` : ''}`);
+  },
+  getVacant: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/subject-assignments/vacant${queryString ? `?${queryString}` : ''}`);
+  },
+  getWorkload: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/subject-assignments/workload${queryString ? `?${queryString}` : ''}`);
+  },
+
+  // Conflict checking
+  checkConflicts: (data) => apiRequest('/api/subject-assignments/check-conflicts', { method: 'POST', body: JSON.stringify(data) }),
+
+  // Assignment operations
+  assign: (data) => apiRequest('/api/subject-assignments', { method: 'POST', body: JSON.stringify(data) }),
+  bulkAssignToTeacher: (data) => apiRequest('/api/subject-assignments/bulk-to-teacher', { method: 'POST', body: JSON.stringify(data) }),
+  bulkAssignToClasses: (data) => apiRequest('/api/subject-assignments/bulk-to-classes', { method: 'POST', body: JSON.stringify(data) }),
+  transfer: (data) => apiRequest('/api/subject-assignments/transfer', { method: 'POST', body: JSON.stringify(data) }),
+  copyToSession: (data) => apiRequest('/api/subject-assignments/copy-to-session', { method: 'POST', body: JSON.stringify(data) }),
+
+  // Update/Delete
+  update: (id, data) => apiRequest(`/api/subject-assignments/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  delete: (id) => apiRequest(`/api/subject-assignments/${id}`, { method: 'DELETE' }),
+  bulkDelete: (data) => apiRequest('/api/subject-assignments/bulk-delete', { method: 'POST', body: JSON.stringify(data) }),
 };
 
 // Classes APIs
@@ -486,6 +584,167 @@ export const people = {
     }),
 };
 
+// Class Timing Configuration
+export const classTimings = {
+  // School Timing Settings (General/Default)
+  getSettings: () => apiRequest('/api/class-timings/settings'),
+  
+  saveSettings: (data) =>
+    apiRequest('/api/class-timings/settings', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  // Day-wise Timing Configuration (Mon-Sat different hours)
+  getDayWise: () => apiRequest('/api/class-timings/day-wise'),
+  
+  saveDayWise: (dayTimings) =>
+    apiRequest('/api/class-timings/day-wise', {
+      method: 'POST',
+      body: JSON.stringify({ dayTimings }),
+    }),
+
+  // Get timing for specific date (combines exceptions, day-wise, defaults)
+  getForDate: (date) => apiRequest(`/api/class-timings/date/${date}`),
+
+  // Timing Templates
+  getTemplates: () => apiRequest('/api/class-timings/templates'),
+  
+  getTemplateById: (id) => apiRequest(`/api/class-timings/templates/${id}`),
+  
+  createTemplate: (data) =>
+    apiRequest('/api/class-timings/templates', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  
+  updateTemplate: (id, data) =>
+    apiRequest(`/api/class-timings/templates/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  
+  deleteTemplate: (id) =>
+    apiRequest(`/api/class-timings/templates/${id}`, {
+      method: 'DELETE',
+    }),
+
+  // Periods and Breaks
+  savePeriods: (templateId, periods) =>
+    apiRequest(`/api/class-timings/templates/${templateId}/periods`, {
+      method: 'POST',
+      body: JSON.stringify({ periods }),
+    }),
+  
+  saveBreaks: (templateId, breaks) =>
+    apiRequest(`/api/class-timings/templates/${templateId}/breaks`, {
+      method: 'POST',
+      body: JSON.stringify({ breaks }),
+    }),
+
+  // Get Active Timing (for Timetable/Attendance)
+  getActive: (date) => apiRequest(`/api/class-timings/active${date ? `?date=${date}` : ''}`),
+
+  // Timing Exceptions (holidays, half-days, special events)
+  getExceptions: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/class-timings/exceptions${queryString ? `?${queryString}` : ''}`);
+  },
+  
+  createException: (data) =>
+    apiRequest('/api/class-timings/exceptions', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  
+  deleteException: (id) =>
+    apiRequest(`/api/class-timings/exceptions/${id}`, {
+      method: 'DELETE',
+    }),
+
+  // Quick Setup
+  generateDefault: (data) =>
+    apiRequest('/api/class-timings/generate-default', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+};
+
+// Departments Configuration
+export const departments = {
+  getAll: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/departments${queryString ? `?${queryString}` : ''}`);
+  },
+
+  getById: (id) => apiRequest(`/api/departments/${id}`),
+
+  create: (data) =>
+    apiRequest('/api/departments', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  bulkCreate: (departmentsList) =>
+    apiRequest('/api/departments/bulk', {
+      method: 'POST',
+      body: JSON.stringify({ departments: departmentsList }),
+    }),
+
+  update: (id, data) =>
+    apiRequest(`/api/departments/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  delete: (id) =>
+    apiRequest(`/api/departments/${id}`, {
+      method: 'DELETE',
+    }),
+
+  reorder: (orderedIds) =>
+    apiRequest('/api/departments/reorder', {
+      method: 'POST',
+      body: JSON.stringify({ orderedIds }),
+    }),
+};
+
+// Timetable APIs
+export const timetable = {
+  getTeacher: (teacherId, params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/timetable/teacher/${teacherId}${queryString ? `?${queryString}` : ''}`);
+  },
+
+  getClass: (classSectionId, params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/timetable/class/${classSectionId}${queryString ? `?${queryString}` : ''}`);
+  },
+
+  save: (data) =>
+    apiRequest('/api/timetable', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  bulkSave: (entries, academicSessionId) =>
+    apiRequest('/api/timetable/bulk', {
+      method: 'POST',
+      body: JSON.stringify({ entries, academicSessionId }),
+    }),
+
+  delete: (id) =>
+    apiRequest(`/api/timetable/${id}`, {
+      method: 'DELETE',
+    }),
+
+  remove: (data) =>
+    apiRequest('/api/timetable/remove', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+};
+
 export default {
   auth,
   students,
@@ -496,5 +755,9 @@ export default {
   subjects,
   fees,
   people,
+  subjectAssignments,
+  classTimings,
+  departments,
+  timetable,
 };
 
