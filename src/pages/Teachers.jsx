@@ -14,6 +14,7 @@ import TeacherSubjectAssignment from '../components/TeacherSubjectAssignment';
 import TeacherLeaveManagement from '../components/TeacherLeaveManagement';
 import TeacherAttendance from '../components/TeacherAttendance';
 import TeacherTimetable from '../components/TeacherTimetable';
+import DailyTimetableView from '../components/DailyTimetableView';
 
 // Fallback departments if API fails
 const DEFAULT_DEPARTMENTS = ['Science', 'Mathematics', 'English', 'Hindi', 'Social Science', 'Computer Science', 'Physical Education', 'Arts', 'Commerce', 'Languages', 'Music', 'Administration', 'Other'];
@@ -38,6 +39,43 @@ const TABS = [
   { id: 'timetable', label: 'Timetable', icon: Clock },
   { id: 'credentials', label: 'Login Access', icon: Key },
 ];
+
+// Timetable Section with Sub-tabs
+const TimetableSection = () => {
+  const [subTab, setSubTab] = useState('daily');
+
+  return (
+    <div className="space-y-4">
+      {/* Sub-tabs */}
+      <div className="bg-white rounded-2xl shadow-lg p-2">
+        <div className="flex gap-2">
+          <button onClick={() => setSubTab('daily')}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium transition-all ${
+              subTab === 'daily'
+                ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-lg'
+                : 'text-gray-600 hover:bg-gray-100'
+            }`}>
+            <Calendar className="w-5 h-5" />
+            Daily View & Substitutions
+          </button>
+          <button onClick={() => setSubTab('weekly')}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium transition-all ${
+              subTab === 'weekly'
+                ? 'bg-gradient-to-r from-purple-500 to-indigo-500 text-white shadow-lg'
+                : 'text-gray-600 hover:bg-gray-100'
+            }`}>
+            <Clock className="w-5 h-5" />
+            Weekly Configuration
+          </button>
+        </div>
+      </div>
+
+      {/* Sub-tab Content */}
+      {subTab === 'daily' && <DailyTimetableView />}
+      {subTab === 'weekly' && <TeacherTimetable />}
+    </div>
+  );
+};
 
 const Teachers = () => {
   // Data state
@@ -656,9 +694,9 @@ const Teachers = () => {
         <TeacherLeaveManagement />
       )}
 
-      {/* Tab: Timetable - Modern UI */}
+      {/* Tab: Timetable - Modern UI with Sub-tabs */}
       {activeTab === 'timetable' && (
-        <TeacherTimetable />
+        <TimetableSection />
       )}
 
       {/* Tab: Login Access */}

@@ -42,6 +42,11 @@ const TeacherTimetable = () => {
   const [loading, setLoading] = useState(true);
   const [timingConfigured, setTimingConfigured] = useState(false);
   
+  // Day-wise periods (different templates for different days)
+  const [dayWisePeriods, setDayWisePeriods] = useState({}); // { Monday: [...], Friday: [...] }
+  const [dayWiseBreaks, setDayWiseBreaks] = useState({});
+  const [dayTemplates, setDayTemplates] = useState({}); // { Monday: 'Default', Friday: 'Friday' }
+  
   // UI State
   const [selectedTeacher, setSelectedTeacher] = useState(null);
   const [selectedClass, setSelectedClass] = useState(null);
@@ -65,54 +70,75 @@ const TeacherTimetable = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [teachersRes, subjectsRes, classRes, sessionRes, timingRes] = await Promise.all([
+      const [teachersRes, subjectsRes, classRes, sessionRes, dayTimingRes] = await Promise.all([
         teachers.getAll(),
         subjectsApi.getAll(),
         classConfig.getClassSections(),
         academicSessions.getCurrent(),
-        classTimings.getActive()
+        classTimings.getDayWiseWithPeriods() // Fetch day-wise periods
       ]);
       if (teachersRes?.success) setTeachersList(teachersRes.data || []);
       if (subjectsRes?.success) setSubjectsList(subjectsRes.data || []);
       if (classRes?.success) setClassSections(classRes.data || []);
       if (sessionRes?.success) setCurrentSession(sessionRes.data);
       
-      // Handle dynamic timing data
-      if (timingRes?.success && timingRes.data) {
-        setTimingData(timingRes.data);
-        setTimingConfigured(timingRes.data.isConfigured);
+      // Handle day-wise timing data
+      if (dayTimingRes?.success && dayTimingRes.data) {
+        setTimingData(dayTimingRes.data);
+        setTimingConfigured(dayTimingRes.data.isConfigured);
         
-        if (timingRes.data.isConfigured) {
-          // Build periods array from API data
-          const apiPeriods = (timingRes.data.periods || []).map(p => ({
-            id: p.id,
-            name: p.name,
-            shortName: p.shortName,
-            start: p.startTime?.substring(0, 5),
-            end: p.endTime?.substring(0, 5),
-            type: 'class',
-            periodNumber: p.periodNumber
-          }));
+        if (dayTimingRes.data.isConfigured && dayTimingRes.data.dayTimings) {
+          const periodsPerDay = {};
+          const breaksPerDay = {};
+          const templatesPerDay = {};
           
-          // Build breaks array from API data
-          const apiBreaks = (timingRes.data.breaks || []).map(b => ({
-            id: b.id,
-            name: b.name,
-            shortName: b.shortName,
-            start: b.startTime?.substring(0, 5),
-            end: b.endTime?.substring(0, 5),
-            type: 'break',
-            breakType: b.breakType,
-            afterPeriod: b.afterPeriod
-          }));
+          // Build periods and breaks for each day
+          dayTimingRes.data.dayTimings.forEach(dayData => {
+            const dayName = dayData.dayName;
+            if (!dayData.isWorkingDay) return;
+            
+            templatesPerDay[dayName] = dayData.templateName;
+            
+            // Build periods array
+            periodsPerDay[dayName] = (dayData.periods || []).map(p => ({
+              id: p.id,
+              name: p.name,
+              shortName: p.shortName,
+              start: p.startTime?.substring(0, 5),
+              end: p.endTime?.substring(0, 5),
+              type: 'class',
+              periodNumber: p.periodNumber
+            }));
+            
+            // Build breaks array
+            breaksPerDay[dayName] = (dayData.breaks || []).map(b => ({
+              id: b.id,
+              name: b.name,
+              shortName: b.shortName,
+              start: b.startTime?.substring(0, 5),
+              end: b.endTime?.substring(0, 5),
+              type: 'break',
+              breakType: b.breakType,
+              afterPeriod: b.afterPeriod
+            }));
+          });
           
-          // Merge periods and breaks into timeline
-          const timeline = [...apiPeriods, ...apiBreaks].sort((a, b) => 
+          setDayWisePeriods(periodsPerDay);
+          setDayWiseBreaks(breaksPerDay);
+          setDayTemplates(templatesPerDay);
+          
+          // Set default periods (Monday or first available day)
+          const firstDay = DAYS.find(d => periodsPerDay[d]?.length > 0) || 'Monday';
+          const defaultPeriods = periodsPerDay[firstDay] || [];
+          const defaultBreaks = breaksPerDay[firstDay] || [];
+          
+          // Merge into timeline for display
+          const timeline = [...defaultPeriods, ...defaultBreaks].sort((a, b) => 
             (a.start || '').localeCompare(b.start || '')
           );
           
           setPeriods(timeline);
-          setBreaks(apiBreaks);
+          setBreaks(defaultBreaks);
         }
       }
     } catch (e) {
@@ -378,16 +404,6 @@ const TeacherTimetable = () => {
             </div>
           </div>
 
-          {/* Period Legend */}
-          <div className="flex items-center gap-4 mt-6 flex-wrap">
-            <span className="text-white/70 text-sm">Time Slots:</span>
-            {periods.filter(p => p.type === 'class').slice(0, 4).map(p => (
-              <div key={p.id} className="bg-white/15 backdrop-blur-sm px-3 py-1 rounded-lg text-sm">
-                {p.name} ({p.start}-{p.end})
-              </div>
-            ))}
-            <span className="text-white/50 text-sm">... and more</span>
-          </div>
         </div>
 
         {/* Timetable Grid */}
@@ -403,76 +419,157 @@ const TeacherTimetable = () => {
                         Time
                       </div>
                     </th>
-                    {DAYS.map(day => (
-                      <th key={day} className="p-4 text-center text-sm font-semibold text-gray-700 border-b border-gray-200 min-w-[140px]">
-                        {day}
-                      </th>
-                    ))}
+                    {DAYS.map(day => {
+                      const templateName = dayTemplates[day];
+                      const hasDifferentTemplate = templateName && templateName !== 'Default' && templateName !== 'Regular Day';
+                      return (
+                        <th key={day} className="p-4 text-center border-b border-gray-200 min-w-[140px]">
+                          <div className="text-sm font-semibold text-gray-700">{day}</div>
+                          {hasDifferentTemplate && (
+                            <div className="text-xs text-purple-600 font-medium mt-1 bg-purple-50 px-2 py-0.5 rounded-full inline-block">
+                              {templateName}
+                            </div>
+                          )}
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody>
-                  {periods.map((period, idx) => {
-                    const TimeIcon = getTimeIcon(period.start);
-                    const isBreak = period.type === 'break';
+                  {/* Calculate max periods to determine rows */}
+                  {(() => {
+                    // Get maximum period number across all days
+                    const maxPeriods = Math.max(
+                      ...DAYS.map(day => 
+                        (dayWisePeriods[day] || []).filter(p => p.type !== 'break').length
+                      ),
+                      periods.filter(p => p.type !== 'break').length
+                    );
                     
-                    return (
-                      <tr key={period.id} className={isBreak ? 'bg-amber-50' : idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
-                        <td className={`p-3 border-b border-gray-100 sticky left-0 z-10 ${isBreak ? 'bg-amber-50' : idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-                          <div className="flex items-center gap-2">
-                            {isBreak ? (
-                              <Coffee className="w-4 h-4 text-amber-500" />
-                            ) : (
-                              <TimeIcon className="w-4 h-4 text-gray-400" />
-                            )}
-                            <div>
-                              <p className={`font-medium ${isBreak ? 'text-amber-700' : 'text-gray-800'}`}>{period.name}</p>
-                              <p className="text-xs text-gray-500">{period.start} - {period.end}</p>
+                    // Build unified timeline with period numbers
+                    const rows = [];
+                    for (let pNum = 1; pNum <= maxPeriods; pNum++) {
+                      rows.push({ type: 'period', periodNumber: pNum });
+                      
+                      // Check if any day has a break after this period
+                      const hasBreakAfter = DAYS.some(day => {
+                        const dayBreaks = dayWiseBreaks[day] || breaks;
+                        return dayBreaks.some(b => b.afterPeriod === pNum);
+                      });
+                      
+                      if (hasBreakAfter && pNum < maxPeriods) {
+                        rows.push({ type: 'break', afterPeriod: pNum });
+                      }
+                    }
+                    
+                    return rows.map((row, idx) => {
+                      const isBreak = row.type === 'break';
+                      
+                      return (
+                        <tr key={`row-${idx}`} className={isBreak ? 'bg-amber-50' : idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
+                          {/* Time column - show first day's timing or generic label */}
+                          <td className={`p-3 border-b border-gray-100 sticky left-0 z-10 ${isBreak ? 'bg-amber-50' : idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                            <div className="flex items-center gap-2">
+                              {isBreak ? (
+                                <>
+                                  <Coffee className="w-4 h-4 text-amber-500" />
+                                  <div>
+                                    <p className="font-medium text-amber-700">Break</p>
+                                    <p className="text-xs text-gray-500">After P{row.afterPeriod}</p>
+                                  </div>
+                                </>
+                              ) : (
+                                <>
+                                  {(() => {
+                                    const firstDayPeriod = (dayWisePeriods['Monday'] || periods).find(p => p.periodNumber === row.periodNumber);
+                                    const TimeIcon = getTimeIcon(firstDayPeriod?.start);
+                                    return (
+                                      <>
+                                        <TimeIcon className="w-4 h-4 text-gray-400" />
+                                        <div>
+                                          <p className="font-medium text-gray-800">Period {row.periodNumber}</p>
+                                          {firstDayPeriod && (
+                                            <p className="text-xs text-gray-500">{firstDayPeriod.start} - {firstDayPeriod.end}</p>
+                                          )}
+                                        </div>
+                                      </>
+                                    );
+                                  })()}
+                                </>
+                              )}
                             </div>
-                          </div>
-                        </td>
-                        
-                        {DAYS.map(day => {
-                          const key = `${day}-${period.periodNumber}`;
-                          const entry = timetableData[key];
+                          </td>
                           
-                          if (isBreak) {
+                          {/* Day columns */}
+                          {DAYS.map(day => {
+                            const dayPeriods = dayWisePeriods[day] || periods;
+                            const dayBreaksList = dayWiseBreaks[day] || breaks;
+                            
+                            if (isBreak) {
+                              // Check if this day has a break after this period
+                              const dayBreak = dayBreaksList.find(b => b.afterPeriod === row.afterPeriod);
+                              return (
+                                <td key={day} className="p-2 border-b border-gray-100 text-center">
+                                  {dayBreak ? (
+                                    <div className="px-3 py-2 bg-amber-100/50 rounded-xl">
+                                      <Coffee className="w-4 h-4 text-amber-500 mx-auto" />
+                                      <p className="text-xs text-amber-700 mt-1">{dayBreak.start}-{dayBreak.end}</p>
+                                    </div>
+                                  ) : (
+                                    <div className="px-3 py-2 text-gray-300 text-xs">—</div>
+                                  )}
+                                </td>
+                              );
+                            }
+                            
+                            // Find the period for this day
+                            const dayPeriod = dayPeriods.find(p => p.periodNumber === row.periodNumber);
+                            
+                            if (!dayPeriod) {
+                              return (
+                                <td key={day} className="p-2 border-b border-gray-100 text-center">
+                                  <div className="text-gray-300 text-xs">No period</div>
+                                </td>
+                              );
+                            }
+                            
+                            const key = `${day}-${row.periodNumber}`;
+                            const entry = timetableData[key];
+                            const color = entry ? getSubjectColor(entry.subjectId, subjectColorMap) : null;
+                            
                             return (
-                              <td key={day} className="p-2 border-b border-gray-100 text-center">
-                                <div className="px-4 py-3 bg-amber-100/50 rounded-xl">
-                                  <Coffee className="w-5 h-5 text-amber-500 mx-auto" />
-                                </div>
+                              <td key={day} className="p-2 border-b border-gray-100">
+                                {/* Show time if different from Monday */}
+                                {dayTemplates[day] && dayTemplates[day] !== 'Default' && dayTemplates[day] !== 'Regular Day' && (
+                                  <div className="text-xs text-purple-500 mb-1 text-center font-medium">
+                                    {dayPeriod.start}-{dayPeriod.end}
+                                  </div>
+                                )}
+                                {entry ? (
+                                  <div className={`group relative p-3 rounded-xl border-2 ${color.bg} ${color.border} transition-all hover:shadow-md`}>
+                                    <div className={`absolute left-0 top-0 bottom-0 w-1 ${color.accent} rounded-l-lg`}></div>
+                                    <p className={`font-semibold ${color.text} text-sm truncate`}>{entry.subjectName}</p>
+                                    <p className="text-xs text-gray-500 truncate mt-1">
+                                      {viewMode === 'teacher' ? entry.className : entry.teacherName}
+                                    </p>
+                                    <button onClick={() => handleRemoveEntry(day, dayPeriod.id)}
+                                      className="absolute top-1 right-1 p-1 opacity-0 group-hover:opacity-100 hover:bg-red-100 rounded-lg transition-all">
+                                      <X className="w-3 h-3 text-red-500" />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button onClick={() => setShowAddModal({ day, periodId: dayPeriod.id, periodNumber: row.periodNumber })}
+                                    className="w-full h-full min-h-[60px] border-2 border-dashed border-gray-200 rounded-xl hover:border-purple-300 hover:bg-purple-50 transition-all flex items-center justify-center group">
+                                    <Plus className="w-5 h-5 text-gray-300 group-hover:text-purple-500" />
+                                  </button>
+                                )}
                               </td>
                             );
-                          }
-                          
-                          const color = entry ? getSubjectColor(entry.subjectId, subjectColorMap) : null;
-                          
-                          return (
-                            <td key={day} className="p-2 border-b border-gray-100">
-                              {entry ? (
-                                <div className={`group relative p-3 rounded-xl border-2 ${color.bg} ${color.border} transition-all hover:shadow-md`}>
-                                  <div className={`absolute left-0 top-0 bottom-0 w-1 ${color.accent} rounded-l-lg`}></div>
-                                  <p className={`font-semibold ${color.text} text-sm truncate`}>{entry.subjectName}</p>
-                                  <p className="text-xs text-gray-500 truncate mt-1">
-                                    {viewMode === 'teacher' ? entry.className : entry.teacherName}
-                                  </p>
-                                  <button onClick={() => handleRemoveEntry(day, period.id)}
-                                    className="absolute top-1 right-1 p-1 opacity-0 group-hover:opacity-100 hover:bg-red-100 rounded-lg transition-all">
-                                    <X className="w-3 h-3 text-red-500" />
-                                  </button>
-                                </div>
-                              ) : (
-                                <button onClick={() => setShowAddModal({ day, periodId: period.id, periodNumber: period.periodNumber })}
-                                  className="w-full h-full min-h-[60px] border-2 border-dashed border-gray-200 rounded-xl hover:border-purple-300 hover:bg-purple-50 transition-all flex items-center justify-center group">
-                                  <Plus className="w-5 h-5 text-gray-300 group-hover:text-purple-500" />
-                                </button>
-                              )}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    );
-                  })}
+                          })}
+                        </tr>
+                      );
+                    });
+                  })()}
                 </tbody>
               </table>
             </div>

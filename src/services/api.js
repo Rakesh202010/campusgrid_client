@@ -598,6 +598,9 @@ export const classTimings = {
   // Day-wise Timing Configuration (Mon-Sat different hours)
   getDayWise: () => apiRequest('/api/class-timings/day-wise'),
   
+  // Get all days with their template periods (for Timetable page)
+  getDayWiseWithPeriods: () => apiRequest('/api/class-timings/day-wise/all-periods'),
+  
   saveDayWise: (dayTimings) =>
     apiRequest('/api/class-timings/day-wise', {
       method: 'POST',
@@ -742,6 +745,32 @@ export const timetable = {
     apiRequest('/api/timetable/remove', {
       method: 'POST',
       body: JSON.stringify(data),
+    }),
+
+  // Daily timetable view
+  getDaily: (params) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/timetable/daily?${queryString}`);
+  },
+
+  // Date-specific substitutions
+  getSubstitutions: (date) =>
+    apiRequest(`/api/timetable/substitutions?date=${date}`),
+
+  getAvailableTeachers: (params) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/timetable/substitutions/available-teachers?${queryString}`);
+  },
+
+  createSubstitution: (data) =>
+    apiRequest('/api/timetable/substitutions', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  removeSubstitution: (id) =>
+    apiRequest(`/api/timetable/substitutions/${id}`, {
+      method: 'DELETE',
     }),
 };
 

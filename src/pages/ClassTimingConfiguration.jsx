@@ -118,6 +118,17 @@ const ClassTimingConfiguration = () => {
     isNoSchool: false
   });
 
+  const [showAutoGenerate, setShowAutoGenerate] = useState(false);
+  const [autoGenForm, setAutoGenForm] = useState({
+    startTime: '08:00',
+    periodsCount: 8,
+    periodDuration: 45,
+    shortBreakDuration: 15,
+    shortBreakAfter: [3], // After which periods
+    lunchDuration: 45,
+    lunchAfterPeriod: 5
+  });
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -271,11 +282,20 @@ const ClassTimingConfiguration = () => {
   const handleSavePeriods = async () => {
     if (!activeTemplate) return;
     
+    if (!activeTemplate.periods || activeTemplate.periods.length === 0) {
+      toast.error('Add at least one period before saving');
+      return;
+    }
+
     setSaving(true);
     try {
       const res = await classTimings.savePeriods(activeTemplate.id, activeTemplate.periods);
       if (res?.success) {
-        toast.success('Periods saved!');
+        toast.success(res.message || 'Periods saved!');
+        // Refresh template to get updated data
+        loadTemplateDetails(activeTemplate.id);
+      } else {
+        toast.error(res?.message || 'Failed to save periods');
       }
     } catch (e) {
       toast.error('Failed to save periods');
@@ -289,9 +309,13 @@ const ClassTimingConfiguration = () => {
     
     setSaving(true);
     try {
-      const res = await classTimings.saveBreaks(activeTemplate.id, activeTemplate.breaks);
+      const res = await classTimings.saveBreaks(activeTemplate.id, activeTemplate.breaks || []);
       if (res?.success) {
-        toast.success('Breaks saved!');
+        toast.success(res.message || 'Breaks saved!');
+        // Refresh template to get updated data
+        loadTemplateDetails(activeTemplate.id);
+      } else {
+        toast.error(res?.message || 'Failed to save breaks');
       }
     } catch (e) {
       toast.error('Failed to save breaks');
@@ -300,9 +324,169 @@ const ClassTimingConfiguration = () => {
     }
   };
 
+  // Auto-generate periods and breaks for active template
+  const handleAutoGenerate = () => {
+    if (!activeTemplate) return;
+
+    const formatTime = (mins) => {
+      const h = Math.floor(mins / 60);
+      const m = mins % 60;
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    };
+
+    const [startHour, startMin] = autoGenForm.startTime.split(':').map(Number);
+    let currentTime = startHour * 60 + startMin;
+
+    const newPeriods = [];
+    const newBreaks = [];
+
+    for (let i = 1; i <= autoGenForm.periodsCount; i++) {
+      const periodStart = formatTime(currentTime);
+      currentTime += autoGenForm.periodDuration;
+      const periodEnd = formatTime(currentTime);
+
+      newPeriods.push({
+        id: `gen-period-${i}`,
+        periodNumber: i,
+        name: `Period ${i}`,
+        shortName: `P${i}`,
+        startTime: periodStart,
+        endTime: periodEnd,
+        periodType: 'regular',
+        orderIndex: newPeriods.length
+      });
+
+      // Add lunch after specific period
+      if (i === autoGenForm.lunchAfterPeriod && i < autoGenForm.periodsCount) {
+        const lunchStart = formatTime(currentTime);
+        currentTime += autoGenForm.lunchDuration;
+        const lunchEnd = formatTime(currentTime);
+
+        newBreaks.push({
+          id: `gen-lunch-${i}`,
+          name: 'Lunch Break',
+          shortName: 'Lunch',
+          startTime: lunchStart,
+          endTime: lunchEnd,
+          breakType: 'lunch',
+          afterPeriod: i,
+          orderIndex: newBreaks.length
+        });
+      }
+      // Add short break after specific periods
+      else if (autoGenForm.shortBreakAfter.includes(i) && i < autoGenForm.periodsCount && i !== autoGenForm.lunchAfterPeriod) {
+        const breakStart = formatTime(currentTime);
+        currentTime += autoGenForm.shortBreakDuration;
+        const breakEnd = formatTime(currentTime);
+
+        newBreaks.push({
+          id: `gen-break-${i}`,
+          name: 'Short Break',
+          shortName: 'Break',
+          startTime: breakStart,
+          endTime: breakEnd,
+          breakType: 'short_break',
+          afterPeriod: i,
+          orderIndex: newBreaks.length
+        });
+      }
+    }
+
+    setActiveTemplate(prev => ({
+      ...prev,
+      periods: newPeriods,
+      breaks: newBreaks
+    }));
+
+    setShowAutoGenerate(false);
+    toast.success(`Generated ${newPeriods.length} periods and ${newBreaks.length} breaks! Click "Save All" to persist.`);
+  };
+
+  // Toggle short break after period
+  const toggleShortBreakAfter = (periodNum) => {
+    setAutoGenForm(prev => ({
+      ...prev,
+      shortBreakAfter: prev.shortBreakAfter.includes(periodNum)
+        ? prev.shortBreakAfter.filter(p => p !== periodNum)
+        : [...prev.shortBreakAfter, periodNum].sort((a, b) => a - b)
+    }));
+  };
+
+  // Save both periods and breaks in one click
+  const handleSaveAll = async () => {
+    if (!activeTemplate) return;
+    
+    setSaving(true);
+    try {
+      const [periodsRes, breaksRes] = await Promise.all([
+        classTimings.savePeriods(activeTemplate.id, activeTemplate.periods || []),
+        classTimings.saveBreaks(activeTemplate.id, activeTemplate.breaks || [])
+      ]);
+
+      if (periodsRes?.success && breaksRes?.success) {
+        toast.success('Template saved successfully!');
+        loadTemplateDetails(activeTemplate.id);
+        fetchData();
+      } else {
+        toast.error(periodsRes?.message || breaksRes?.message || 'Failed to save');
+      }
+    } catch (e) {
+      toast.error('Failed to save template');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Validate time - check if end is after start
+  const validateTimeOrder = (startTime, endTime) => {
+    if (!startTime || !endTime) return true;
+    return startTime < endTime;
+  };
+
+  // Check for time overlap between two time ranges
+  const hasTimeOverlap = (start1, end1, start2, end2) => {
+    return start1 < end2 && end1 > start2;
+  };
+
+  // Check if new period overlaps with existing periods/breaks
+  const checkPeriodOverlap = (startTime, endTime, excludeIndex = -1) => {
+    if (!activeTemplate) return null;
+
+    // Check against existing periods
+    for (let i = 0; i < activeTemplate.periods.length; i++) {
+      if (i === excludeIndex) continue;
+      const p = activeTemplate.periods[i];
+      if (hasTimeOverlap(startTime, endTime, p.startTime, p.endTime)) {
+        return `Overlaps with ${p.name} (${p.startTime} - ${p.endTime})`;
+      }
+    }
+
+    // Check against existing breaks
+    for (const b of activeTemplate.breaks || []) {
+      if (hasTimeOverlap(startTime, endTime, b.startTime, b.endTime)) {
+        return `Overlaps with ${b.name} (${b.startTime} - ${b.endTime})`;
+      }
+    }
+
+    return null;
+  };
+
   const addPeriod = () => {
     if (!periodForm.name || !periodForm.startTime || !periodForm.endTime) {
       toast.error('Fill all required fields');
+      return;
+    }
+
+    // Validate time order
+    if (!validateTimeOrder(periodForm.startTime, periodForm.endTime)) {
+      toast.error('End time must be after start time');
+      return;
+    }
+
+    // Check for overlaps
+    const overlap = checkPeriodOverlap(periodForm.startTime, periodForm.endTime);
+    if (overlap) {
+      toast.error(`Time conflict: ${overlap}`);
       return;
     }
 
@@ -314,11 +498,12 @@ const ClassTimingConfiguration = () => {
 
     setActiveTemplate(prev => ({
       ...prev,
-      periods: [...prev.periods, newPeriod]
+      periods: [...prev.periods, newPeriod].sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''))
     }));
 
     setPeriodForm({ periodNumber: activeTemplate.periods.length + 2, name: '', shortName: '', startTime: '', endTime: '', periodType: 'regular' });
     setShowPeriodModal(null);
+    toast.success('Period added! Click "Save" to persist changes.');
   };
 
   const removePeriod = (index) => {
@@ -328,9 +513,45 @@ const ClassTimingConfiguration = () => {
     }));
   };
 
+  // Check if new break overlaps with existing periods/breaks
+  const checkBreakOverlap = (startTime, endTime, excludeIndex = -1) => {
+    if (!activeTemplate) return null;
+
+    // Check against existing periods
+    for (const p of activeTemplate.periods || []) {
+      if (hasTimeOverlap(startTime, endTime, p.startTime, p.endTime)) {
+        return `Overlaps with ${p.name} (${p.startTime} - ${p.endTime})`;
+      }
+    }
+
+    // Check against existing breaks
+    for (let i = 0; i < (activeTemplate.breaks || []).length; i++) {
+      if (i === excludeIndex) continue;
+      const b = activeTemplate.breaks[i];
+      if (hasTimeOverlap(startTime, endTime, b.startTime, b.endTime)) {
+        return `Overlaps with ${b.name} (${b.startTime} - ${b.endTime})`;
+      }
+    }
+
+    return null;
+  };
+
   const addBreak = () => {
     if (!breakForm.name || !breakForm.startTime || !breakForm.endTime) {
       toast.error('Fill all required fields');
+      return;
+    }
+
+    // Validate time order
+    if (!validateTimeOrder(breakForm.startTime, breakForm.endTime)) {
+      toast.error('End time must be after start time');
+      return;
+    }
+
+    // Check for overlaps
+    const overlap = checkBreakOverlap(breakForm.startTime, breakForm.endTime);
+    if (overlap) {
+      toast.error(`Time conflict: ${overlap}`);
       return;
     }
 
@@ -342,11 +563,12 @@ const ClassTimingConfiguration = () => {
 
     setActiveTemplate(prev => ({
       ...prev,
-      breaks: [...prev.breaks, newBreak]
+      breaks: [...prev.breaks, newBreak].sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''))
     }));
 
     setBreakForm({ name: '', shortName: '', startTime: '', endTime: '', breakType: 'short_break', afterPeriod: 1 });
     setShowBreakModal(null);
+    toast.success('Break added! Click "Save" to persist changes.');
   };
 
   const removeBreak = (index) => {
@@ -846,6 +1068,15 @@ const ClassTimingConfiguration = () => {
                       <p className="text-gray-500">{activeTemplate.description || 'No description'}</p>
                     </div>
                     <div className="flex items-center gap-2">
+                      <button onClick={() => setShowAutoGenerate(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transition-all">
+                        <Zap className="w-4 h-4" /> Auto Generate
+                      </button>
+                      <button onClick={handleSaveAll} disabled={saving}
+                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transition-all disabled:opacity-50">
+                        {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                        Save All
+                      </button>
                       <button onClick={() => { setEditingTemplate(activeTemplate); setTemplateForm(activeTemplate); setShowTemplateModal(true); }}
                         className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg">
                         <Edit2 className="w-5 h-5" />
@@ -860,19 +1091,27 @@ const ClassTimingConfiguration = () => {
                   </div>
 
                   {/* Visual Timeline */}
-                  <div className="mt-6">
-                    <h4 className="text-sm font-medium text-gray-700 mb-3">Daily Schedule Preview</h4>
-                    <div className="flex items-stretch gap-1 h-14 rounded-xl overflow-hidden bg-gray-100 p-1">
-                      {getTimeline().map((item, idx) => (
-                        <div key={idx} title={`${item.name}: ${formatTime(item.startTime)} - ${formatTime(item.endTime)}`}
-                          className={`flex-1 rounded-lg flex items-center justify-center text-white text-xs font-medium ${
-                            item.type === 'break' ? 'bg-amber-400' : 'bg-indigo-500'
-                          }`}>
-                          {item.shortName || item.name?.split(' ')[0]}
-                        </div>
-                      ))}
+                  {getTimeline().length > 0 ? (
+                    <div className="mt-6">
+                      <h4 className="text-sm font-medium text-gray-700 mb-3">Daily Schedule Preview</h4>
+                      <div className="flex items-stretch gap-1 h-14 rounded-xl overflow-hidden bg-gray-100 p-1">
+                        {getTimeline().map((item, idx) => (
+                          <div key={idx} title={`${item.name}: ${formatTime(item.startTime)} - ${formatTime(item.endTime)}`}
+                            className={`flex-1 rounded-lg flex items-center justify-center text-white text-xs font-medium ${
+                              item.type === 'break' ? 'bg-amber-400' : 'bg-indigo-500'
+                            }`}>
+                            {item.shortName || item.name?.split(' ')[0]}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="mt-6 p-6 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border-2 border-dashed border-purple-200 text-center">
+                      <Zap className="w-10 h-10 text-purple-400 mx-auto mb-3" />
+                      <p className="text-purple-700 font-medium">No periods configured yet</p>
+                      <p className="text-purple-500 text-sm mt-1">Click "Auto Generate" to quickly create all periods and breaks</p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Periods */}
@@ -1320,6 +1559,161 @@ const ClassTimingConfiguration = () => {
             <div className="px-6 py-4 bg-gray-50 flex justify-end gap-3">
               <button onClick={() => setShowExceptionModal(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-xl">Cancel</button>
               <button onClick={handleSaveException} disabled={saving} className="px-5 py-2 bg-indigo-600 text-white rounded-xl font-medium">Save Exception</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Auto Generate Modal */}
+      {showAutoGenerate && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden">
+            <div className="bg-gradient-to-r from-purple-600 via-pink-600 to-rose-600 p-6 text-white">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                    <Zap className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold">Auto Generate Schedule</h3>
+                    <p className="text-white/70 text-sm">Configure all periods & breaks in one click</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowAutoGenerate(false)} className="p-2 hover:bg-white/20 rounded-lg">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Time Settings */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <Sunrise className="w-4 h-4 inline mr-1 text-amber-500" /> School Starts At
+                  </label>
+                  <input type="time" value={autoGenForm.startTime}
+                    onChange={(e) => setAutoGenForm({ ...autoGenForm, startTime: e.target.value })}
+                    className="w-full px-4 py-3 bg-gray-50 border-0 rounded-xl focus:ring-2 focus:ring-purple-500 text-lg font-semibold" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <BookOpen className="w-4 h-4 inline mr-1 text-indigo-500" /> Number of Periods
+                  </label>
+                  <input type="number" min="4" max="12" value={autoGenForm.periodsCount}
+                    onChange={(e) => setAutoGenForm({ ...autoGenForm, periodsCount: parseInt(e.target.value) || 8 })}
+                    className="w-full px-4 py-3 bg-gray-50 border-0 rounded-xl focus:ring-2 focus:ring-purple-500 text-lg font-semibold text-center" />
+                </div>
+              </div>
+
+              {/* Duration Settings */}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Period Duration: <span className="text-purple-600 font-bold">{autoGenForm.periodDuration} min</span>
+                  </label>
+                  <input type="range" min="30" max="60" step="5" value={autoGenForm.periodDuration}
+                    onChange={(e) => setAutoGenForm({ ...autoGenForm, periodDuration: parseInt(e.target.value) })}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-600" />
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>30 min</span><span>45 min</span><span>60 min</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Short Break Duration: <span className="text-amber-600 font-bold">{autoGenForm.shortBreakDuration} min</span>
+                  </label>
+                  <input type="range" min="5" max="20" step="5" value={autoGenForm.shortBreakDuration}
+                    onChange={(e) => setAutoGenForm({ ...autoGenForm, shortBreakDuration: parseInt(e.target.value) })}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-amber-500" />
+                </div>
+              </div>
+
+              {/* Short Breaks After */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  <Coffee className="w-4 h-4 inline mr-1 text-amber-500" /> Short Breaks After Period
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {Array.from({ length: autoGenForm.periodsCount - 1 }, (_, i) => i + 1).map(num => (
+                    <button key={num} type="button"
+                      onClick={() => num !== autoGenForm.lunchAfterPeriod && toggleShortBreakAfter(num)}
+                      disabled={num === autoGenForm.lunchAfterPeriod}
+                      className={`w-10 h-10 rounded-xl font-bold text-sm transition-all ${
+                        num === autoGenForm.lunchAfterPeriod
+                          ? 'bg-orange-100 text-orange-400 cursor-not-allowed'
+                          : autoGenForm.shortBreakAfter.includes(num)
+                            ? 'bg-amber-500 text-white shadow-lg'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}>
+                      P{num}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-500 mt-2">Click to toggle. Orange = Lunch (can't add break there)</p>
+              </div>
+
+              {/* Lunch Settings */}
+              <div className="p-4 bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl border border-orange-200">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
+                    <Coffee className="w-6 h-6 text-orange-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-orange-800">Lunch Break</p>
+                    <div className="flex items-center gap-4 mt-2">
+                      <div>
+                        <label className="text-xs text-orange-600">After Period</label>
+                        <select value={autoGenForm.lunchAfterPeriod}
+                          onChange={(e) => setAutoGenForm({ 
+                            ...autoGenForm, 
+                            lunchAfterPeriod: parseInt(e.target.value),
+                            shortBreakAfter: autoGenForm.shortBreakAfter.filter(p => p !== parseInt(e.target.value))
+                          })}
+                          className="ml-2 px-3 py-1.5 bg-white border-0 rounded-lg focus:ring-2 focus:ring-orange-500 text-sm font-semibold">
+                          {Array.from({ length: autoGenForm.periodsCount - 1 }, (_, i) => i + 1).map(n => (
+                            <option key={n} value={n}>P{n}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-orange-600">Duration</label>
+                        <select value={autoGenForm.lunchDuration}
+                          onChange={(e) => setAutoGenForm({ ...autoGenForm, lunchDuration: parseInt(e.target.value) })}
+                          className="ml-2 px-3 py-1.5 bg-white border-0 rounded-lg focus:ring-2 focus:ring-orange-500 text-sm font-semibold">
+                          <option value={30}>30 min</option>
+                          <option value={45}>45 min</option>
+                          <option value={60}>60 min</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Preview */}
+              <div className="p-4 bg-gray-50 rounded-xl">
+                <p className="text-sm text-gray-600 flex items-center gap-2">
+                  <Info className="w-4 h-4" />
+                  <span>
+                    This will generate <strong>{autoGenForm.periodsCount} periods</strong>, 
+                    <strong> {autoGenForm.shortBreakAfter.length} short breaks</strong>, 
+                    and <strong>1 lunch break</strong>
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 bg-gray-50 flex justify-end gap-3">
+              <button onClick={() => setShowAutoGenerate(false)} 
+                className="px-5 py-2.5 text-gray-600 hover:bg-gray-200 rounded-xl font-medium">
+                Cancel
+              </button>
+              <button onClick={handleAutoGenerate}
+                className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all">
+                <Zap className="w-4 h-4" /> Generate Schedule
+              </button>
             </div>
           </div>
         </div>
