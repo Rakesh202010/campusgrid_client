@@ -14,7 +14,8 @@ import {
   ChevronDown,
   Palette
 } from 'lucide-react';
-import { subjects, academicSessions, classConfig } from '../services/api';
+import { subjects, academicSessions, classConfig, departments as departmentsApi } from '../services/api';
+import { useAcademicSession } from '../contexts/AcademicSessionContext';
 import { toast } from '../utils/toast';
 
 // Predefined subject templates
@@ -42,14 +43,16 @@ const CATEGORY_OPTIONS = [
 ];
 
 const SubjectConfiguration = () => {
+  const { currentSession, sessionId, sessions: contextSessions } = useAcademicSession();
+  
   const [activeTab, setActiveTab] = useState('subjects');
   
   // Data state
   const [subjectsList, setSubjectsList] = useState([]);
+  const [departmentsList, setDepartmentsList] = useState([]);
   const [curriculum, setCurriculum] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [classSections, setClassSections] = useState([]);
-  const [currentSession, setCurrentSession] = useState(null);
   const [selectedSessionId, setSelectedSessionId] = useState(null);
   const [selectedClassSectionId, setSelectedClassSectionId] = useState(null);
   
@@ -69,6 +72,7 @@ const SubjectConfiguration = () => {
     displayName: '',
     description: '',
     category: 'core',
+    departmentId: '',
     subjectType: 'theory',
     isMandatory: true,
     creditHours: 0,
@@ -85,8 +89,17 @@ const SubjectConfiguration = () => {
   });
 
   useEffect(() => {
-    fetchInitialData();
-  }, []);
+    if (sessionId) {
+      setSelectedSessionId(sessionId);
+      fetchInitialData();
+    }
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (contextSessions?.length > 0) {
+      setSessions(contextSessions);
+    }
+  }, [contextSessions]);
 
   useEffect(() => {
     if (selectedSessionId) {
@@ -103,21 +116,15 @@ const SubjectConfiguration = () => {
   const fetchInitialData = async () => {
     setLoading(true);
     try {
-      const [subjectsRes, sessionsRes, currentSessionRes] = await Promise.all([
-        subjects.getAll(),
+      const [subjectsRes, sessionsRes, departmentsRes] = await Promise.all([
+        subjects.getAll({ academic_session_id: sessionId }),
         academicSessions.getAll(),
-        academicSessions.getCurrent()
+        departmentsApi.getAll()
       ]);
 
       if (subjectsRes?.success) setSubjectsList(subjectsRes.data || []);
       if (sessionsRes?.success) setSessions(sessionsRes.data || []);
-      
-      if (currentSessionRes?.success && currentSessionRes.data) {
-        setCurrentSession(currentSessionRes.data);
-        setSelectedSessionId(currentSessionRes.data.id);
-      } else if (sessionsRes?.data?.length > 0) {
-        setSelectedSessionId(sessionsRes.data[0].id);
-      }
+      if (departmentsRes?.success) setDepartmentsList(departmentsRes.data || []);
     } catch (error) {
       console.error('Error fetching data:', error);
       toast.error('Failed to load data');
@@ -169,6 +176,7 @@ const SubjectConfiguration = () => {
         displayName: subject.displayName || '',
         description: subject.description || '',
         category: subject.category || 'core',
+        departmentId: subject.departmentId || '',
         subjectType: subject.subjectType || 'theory',
         isMandatory: subject.isMandatory !== false,
         creditHours: subject.creditHours || 0,
@@ -185,6 +193,7 @@ const SubjectConfiguration = () => {
         displayName: '',
         description: '',
         category: 'core',
+        departmentId: '',
         subjectType: 'theory',
         isMandatory: true,
         creditHours: 0,
@@ -462,6 +471,11 @@ const SubjectConfiguration = () => {
                     </div>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
+                    {subject.departmentId && (
+                      <span className="px-2 py-0.5 text-xs bg-indigo-100 text-indigo-700 rounded-full font-medium">
+                        {departmentsList.find(d => d.id === subject.departmentId)?.name || 'Department'}
+                      </span>
+                    )}
                     <span className={`px-2 py-0.5 text-xs rounded-full ${getCategoryStyle(subject.category)}`}>
                       {CATEGORY_OPTIONS.find(c => c.value === subject.category)?.label || subject.category}
                     </span>
@@ -700,6 +714,21 @@ const SubjectConfiguration = () => {
                   placeholder="e.g., Mathematics"
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Department *</label>
+                <select
+                  value={subjectForm.departmentId}
+                  onChange={(e) => setSubjectForm({ ...subjectForm, departmentId: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                >
+                  <option value="">Select Department</option>
+                  {departmentsList.map(dept => (
+                    <option key={dept.id} value={dept.id}>{dept.name}</option>
+                  ))}
+                </select>
               </div>
 
               <div className="grid grid-cols-2 gap-4">

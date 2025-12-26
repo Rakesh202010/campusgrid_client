@@ -61,9 +61,20 @@ export const auth = {
 
 // Students APIs
 export const students = {
-  getAll: () => apiRequest('/api/students'),
+  getAll: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/students${queryString ? `?${queryString}` : ''}`);
+  },
   
   getById: (id) => apiRequest(`/api/students/${id}`),
+  
+  getStats: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/students/stats${queryString ? `?${queryString}` : ''}`);
+  },
+  
+  getNextAdmissionNumber: (prefix) => 
+    apiRequest(`/api/students/next-admission-number${prefix ? `?prefix=${prefix}` : ''}`),
   
   create: (studentData) =>
     apiRequest('/api/students', {
@@ -73,13 +84,72 @@ export const students = {
   
   update: (id, studentData) =>
     apiRequest(`/api/students/${id}`, {
-      method: 'PATCH',
+      method: 'PUT',
       body: JSON.stringify(studentData),
     }),
   
-  delete: (id) =>
-    apiRequest(`/api/students/${id}`, {
+  delete: (id, permanent = false) =>
+    apiRequest(`/api/students/${id}${permanent ? '?permanent=true' : ''}`, {
       method: 'DELETE',
+    }),
+  
+  // Parent management
+  addParent: (studentId, parentData) =>
+    apiRequest(`/api/students/${studentId}/parents`, {
+      method: 'POST',
+      body: JSON.stringify(parentData),
+    }),
+  
+  updateParent: (studentId, parentId, parentData) =>
+    apiRequest(`/api/students/${studentId}/parents/${parentId}`, {
+      method: 'PUT',
+      body: JSON.stringify(parentData),
+    }),
+  
+  deleteParent: (studentId, parentId) =>
+    apiRequest(`/api/students/${studentId}/parents/${parentId}`, {
+      method: 'DELETE',
+    }),
+  
+  // Promotion
+  promote: (data) =>
+    apiRequest('/api/students/promote', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  // Export students
+  export: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    const token = localStorage.getItem('schoolAdmin_token');
+    // Direct download - returns blob
+    return fetch(`http://localhost:4001/api/students/export${queryString ? `?${queryString}` : ''}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    }).then(res => res.blob());
+  },
+
+  // Get import template
+  getImportTemplate: () => {
+    const token = localStorage.getItem('schoolAdmin_token');
+    return fetch('http://localhost:4001/api/students/import-template', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    }).then(res => res.blob());
+  },
+
+  // Import students
+  import: (data) =>
+    apiRequest('/api/students/import', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  // Academic Mapping
+  getAcademicMapping: (id) => apiRequest(`/api/students/${id}/academic-mapping`),
+  
+  updateClassSection: (id, data) =>
+    apiRequest(`/api/students/${id}/class-section`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
     }),
 };
 
@@ -774,6 +844,55 @@ export const timetable = {
     }),
 };
 
+// Number Generation Settings
+export const numberSettings = {
+  getAll: () => apiRequest('/api/number-settings'),
+  
+  update: (settingType, data) =>
+    apiRequest(`/api/number-settings/${settingType}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  
+  getNextAdmissionNumber: (classSectionId) => {
+    const params = classSectionId ? `?classSectionId=${classSectionId}` : '';
+    return apiRequest(`/api/number-settings/next-admission-number${params}`);
+  },
+  
+  getNextRollNumber: (classSectionId, academicSessionId) => {
+    const params = new URLSearchParams();
+    if (classSectionId) params.append('classSectionId', classSectionId);
+    if (academicSessionId) params.append('academicSessionId', academicSessionId);
+    return apiRequest(`/api/number-settings/next-roll-number?${params.toString()}`);
+  },
+  
+  increment: (settingType) =>
+    apiRequest(`/api/number-settings/${settingType}/increment`, {
+      method: 'POST',
+    }),
+  
+  reset: (settingType, data) =>
+    apiRequest(`/api/number-settings/${settingType}/reset`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  
+  bulkGenerate: (data) =>
+    apiRequest('/api/number-settings/bulk-generate', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+};
+
+// Dashboard
+export const dashboard = {
+  getStats: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/dashboard/stats${queryString ? `?${queryString}` : ''}`);
+  },
+  getQuickCounts: () => apiRequest('/api/dashboard/quick-counts'),
+};
+
 export default {
   auth,
   students,
@@ -788,5 +907,7 @@ export default {
   classTimings,
   departments,
   timetable,
+  numberSettings,
+  dashboard,
 };
 

@@ -8,7 +8,8 @@ import {
   ClipboardList, GraduationCapIcon, FileCheck, Lock, Unlock, ChevronRight,
   ChevronLeft, Filter, Table, LayoutGrid, Save, Check
 } from 'lucide-react';
-import { teachers, classConfig, subjects as subjectsApi, academicSessions, departments as departmentsApi } from '../services/api';
+import { teachers, classConfig, subjects as subjectsApi, departments as departmentsApi } from '../services/api';
+import { useAcademicSession } from '../contexts/AcademicSessionContext';
 import { toast } from '../utils/toast';
 import TeacherSubjectAssignment from '../components/TeacherSubjectAssignment';
 import TeacherLeaveManagement from '../components/TeacherLeaveManagement';
@@ -78,12 +79,13 @@ const TimetableSection = () => {
 };
 
 const Teachers = () => {
+  const { currentSession, sessionId } = useAcademicSession();
+  
   // Data state
   const [teachersList, setTeachersList] = useState([]);
   const [stats, setStats] = useState(null);
   const [classSections, setClassSections] = useState([]);
   const [subjectsList, setSubjectsList] = useState([]);
-  const [currentSession, setCurrentSession] = useState(null);
   const [leaveTypes, setLeaveTypes] = useState([]);
   const [allLeaveApplications, setAllLeaveApplications] = useState([]);
   const [departmentsList, setDepartmentsList] = useState([]); // Dynamic departments
@@ -134,20 +136,20 @@ const Teachers = () => {
   const [docForm, setDocForm] = useState({ documentType: '', documentName: '', fileUrl: '', expiryDate: '', remarks: '' });
   const [importData, setImportData] = useState('');
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { 
+    if (sessionId) {
+      fetchData(); 
+    }
+  }, [sessionId]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const sessionRes = await academicSessions.getCurrent();
-      const currentSessionId = sessionRes?.success ? sessionRes.data?.id : null;
-      setCurrentSession(sessionRes?.data);
-
       const [teachersRes, statsRes, classRes, subjectsRes, leaveTypesRes, leaveAppsRes, deptRes] = await Promise.all([
         teachers.getAll(),
         teachers.getStats(),
-        classConfig.getClassSections(currentSessionId ? { academic_session_id: currentSessionId } : {}),
-        subjectsApi.getAll(),
+        classConfig.getClassSections({ academic_session_id: sessionId }),
+        subjectsApi.getAll({ academic_session_id: sessionId }),
         teachers.getLeaveTypes(),
         teachers.getAllLeaveApplications({ status: 'pending' }),
         departmentsApi.getAll({ is_active: true })
@@ -973,7 +975,7 @@ const Teachers = () => {
               <button type="button" onClick={() => formStep > 1 ? setFormStep(formStep - 1) : setShowTeacherModal(false)}
                 className="px-5 py-2.5 text-gray-700 hover:bg-gray-200 rounded-xl">
                 {formStep > 1 ? '← Previous' : 'Cancel'}
-              </button>
+                </button>
               {formStep < 4 ? (
                 <button type="button" onClick={() => setFormStep(formStep + 1)}
                   className="px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700">Next →</button>

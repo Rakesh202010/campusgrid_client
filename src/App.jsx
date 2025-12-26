@@ -1,10 +1,12 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
+import { AcademicSessionProvider } from './contexts/AcademicSessionContext';
 import Login from './pages/Login';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
 import Students from './pages/Students';
+import StudentDetail from './pages/StudentDetail';
 import Teachers from './pages/Teachers';
 import Classes from './pages/Classes';
 import Attendance from './pages/Attendance';
@@ -22,6 +24,7 @@ import PeopleConfiguration from './pages/PeopleConfiguration';
 import SubjectAssignment from './pages/SubjectAssignment';
 import ClassTimingConfiguration from './pages/ClassTimingConfiguration';
 import DepartmentConfiguration from './pages/DepartmentConfiguration';
+import NumberConfiguration from './pages/NumberConfiguration';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -78,13 +81,16 @@ function App() {
           path="/" 
           element={
             <ProtectedRoute>
-              <Layout />
+              <AcademicSessionProvider>
+                <Layout />
+              </AcademicSessionProvider>
             </ProtectedRoute>
           }
         >
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="students" element={<Students />} />
+          <Route path="students/:id" element={<StudentDetail />} />
           <Route path="teachers" element={<Teachers />} />
           <Route path="teachers/subject-assignment" element={<SubjectAssignment />} />
           <Route path="classes" element={<Classes />} />
@@ -101,6 +107,7 @@ function App() {
           <Route path="settings/people" element={<PeopleConfiguration />} />
           <Route path="settings/class-timings" element={<ClassTimingConfiguration />} />
           <Route path="settings/departments" element={<DepartmentConfiguration />} />
+          <Route path="settings/number-settings" element={<NumberConfiguration />} />
           <Route path="change-password" element={<ChangePassword />} />
         </Route>
 

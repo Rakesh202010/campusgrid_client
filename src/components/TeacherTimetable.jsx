@@ -56,10 +56,18 @@ const TeacherTimetable = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [subjectColorMap] = useState({});
   const [addFormData, setAddFormData] = useState({ subjectId: '', classSectionId: '', teacherId: '', room: '' });
+  const [filteredSubjects, setFilteredSubjects] = useState([]); // Subjects filtered by teacher/class assignment
+  const [filteredClassesForTeacher, setFilteredClassesForTeacher] = useState([]); // Classes where teacher teaches
+  const [filteredTeachersForClass, setFilteredTeachersForClass] = useState([]); // Teachers who teach in the class
 
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Filter subjects when teacher or class selection changes
+  useEffect(() => {
+    filterSubjectsForSelection();
+  }, [selectedTeacher, selectedClass, viewMode, subjectsList, currentSession]);
 
   useEffect(() => {
     if ((selectedTeacher || selectedClass) && currentSession?.id) {
@@ -164,6 +172,82 @@ const TeacherTimetable = () => {
       }
     } catch (e) {
       console.error('Error fetching timetable:', e);
+    }
+  };
+
+  // Filter subjects, classes, and teachers based on assignments
+  const filterSubjectsForSelection = async () => {
+    const sessionClasses = classSections.filter(c => c.academicSessionId === currentSession?.id);
+    
+    if (!currentSession?.id) {
+      setFilteredSubjects(subjectsList);
+      setFilteredClassesForTeacher(sessionClasses);
+      setFilteredTeachersForClass(teachersList);
+      return;
+    }
+    
+    try {
+      if (viewMode === 'teacher' && selectedTeacher?.id) {
+        // Fetch all teacher assignments and find this teacher's data
+        const res = await subjectAssignments.getByTeacher({ academic_session_id: currentSession.id });
+        
+        if (res?.success && res.data) {
+          // Find this teacher's assignments
+          const teacherData = res.data.find(t => t.teacherId === selectedTeacher.id);
+          
+          if (teacherData && teacherData.assignments && teacherData.assignments.length > 0) {
+            // Get unique subject IDs from teacher's assignments
+            const assignedSubjectIds = [...new Set(teacherData.assignments.map(a => a.subjectId))];
+            const filteredSubs = subjectsList.filter(s => assignedSubjectIds.includes(s.id));
+            setFilteredSubjects(filteredSubs.length > 0 ? filteredSubs : subjectsList);
+            
+            // Get unique class section IDs where teacher teaches
+            const assignedClassIds = [...new Set(teacherData.assignments.map(a => a.classSectionId).filter(Boolean))];
+            const filteredCls = sessionClasses.filter(c => assignedClassIds.includes(c.id));
+            setFilteredClassesForTeacher(filteredCls.length > 0 ? filteredCls : sessionClasses);
+          } else {
+            setFilteredSubjects(subjectsList);
+            setFilteredClassesForTeacher(sessionClasses);
+          }
+        } else {
+          setFilteredSubjects(subjectsList);
+          setFilteredClassesForTeacher(sessionClasses);
+        }
+      } else if (viewMode === 'class' && selectedClass?.id) {
+        // Fetch all class assignments and find this class's data
+        const res = await subjectAssignments.getByClass({ academic_session_id: currentSession.id });
+        if (res?.success && res.data) {
+          // Find this class's assignments
+          const classData = res.data.find(c => c.classSectionId === selectedClass.id);
+          
+          if (classData && classData.assignments && classData.assignments.length > 0) {
+            // Get unique subject IDs from class assignments
+            const assignedSubjectIds = [...new Set(classData.assignments.map(a => a.subjectId))];
+            const filteredSubs = subjectsList.filter(s => assignedSubjectIds.includes(s.id));
+            setFilteredSubjects(filteredSubs.length > 0 ? filteredSubs : subjectsList);
+            
+            // Get unique teacher IDs who teach in this class
+            const assignedTeacherIds = [...new Set(classData.assignments.map(a => a.teacherId).filter(Boolean))];
+            const filteredTchs = teachersList.filter(t => assignedTeacherIds.includes(t.id));
+            setFilteredTeachersForClass(filteredTchs.length > 0 ? filteredTchs : teachersList);
+          } else {
+            setFilteredSubjects(subjectsList);
+            setFilteredTeachersForClass(teachersList);
+          }
+        } else {
+          setFilteredSubjects(subjectsList);
+          setFilteredTeachersForClass(teachersList);
+        }
+      } else {
+        setFilteredSubjects(subjectsList);
+        setFilteredClassesForTeacher(sessionClasses);
+        setFilteredTeachersForClass(teachersList);
+      }
+    } catch (e) {
+      console.error('Error filtering subjects:', e);
+      setFilteredSubjects(subjectsList);
+      setFilteredClassesForTeacher(sessionClasses);
+      setFilteredTeachersForClass(teachersList);
     }
   };
 
@@ -552,7 +636,7 @@ const TeacherTimetable = () => {
                                     <p className="text-xs text-gray-500 truncate mt-1">
                                       {viewMode === 'teacher' ? entry.className : entry.teacherName}
                                     </p>
-                                    <button onClick={() => handleRemoveEntry(day, dayPeriod.id)}
+                                    <button onClick={() => handleRemoveEntry(day, row.periodNumber)}
                                       className="absolute top-1 right-1 p-1 opacity-0 group-hover:opacity-100 hover:bg-red-100 rounded-lg transition-all">
                                       <X className="w-3 h-3 text-red-500" />
                                     </button>
@@ -664,13 +748,18 @@ const TeacherTimetable = () => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   <BookOpen className="w-4 h-4 inline mr-2" />Subject *
+                  {filteredSubjects.length < subjectsList.length && (
+                    <span className="ml-2 text-xs text-purple-600 font-normal">
+                      (Showing {filteredSubjects.length} assigned subjects)
+                    </span>
+                  )}
                 </label>
                 <select 
                   value={addFormData.subjectId}
                   onChange={(e) => setAddFormData({ ...addFormData, subjectId: e.target.value })}
                   className="w-full px-4 py-3 bg-gray-50 border-0 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500">
                   <option value="">Select Subject</option>
-                  {subjectsList.map(s => (
+                  {filteredSubjects.map(s => (
                     <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
                   ))}
                 </select>
@@ -680,13 +769,18 @@ const TeacherTimetable = () => {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     <Building className="w-4 h-4 inline mr-2" />Class *
+                    {filteredClassesForTeacher.length < classSections.length && (
+                      <span className="ml-2 text-xs text-purple-600 font-normal">
+                        (Showing {filteredClassesForTeacher.length} assigned classes)
+                      </span>
+                    )}
                   </label>
                   <select 
                     value={addFormData.classSectionId}
                     onChange={(e) => setAddFormData({ ...addFormData, classSectionId: e.target.value })}
                     className="w-full px-4 py-3 bg-gray-50 border-0 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500">
                     <option value="">Select Class</option>
-                    {filteredClasses.map(c => (
+                    {filteredClassesForTeacher.map(c => (
                       <option key={c.id} value={c.id}>{c.gradeDisplayName} - {c.sectionDisplayName}</option>
                     ))}
                   </select>
@@ -695,13 +789,18 @@ const TeacherTimetable = () => {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     <Users className="w-4 h-4 inline mr-2" />Teacher *
+                    {filteredTeachersForClass.length < teachersList.length && (
+                      <span className="ml-2 text-xs text-purple-600 font-normal">
+                        (Showing {filteredTeachersForClass.length} assigned teachers)
+                      </span>
+                    )}
                   </label>
                   <select 
                     value={addFormData.teacherId}
                     onChange={(e) => setAddFormData({ ...addFormData, teacherId: e.target.value })}
                     className="w-full px-4 py-3 bg-gray-50 border-0 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500">
                     <option value="">Select Teacher</option>
-                    {teachersList.map(t => (
+                    {filteredTeachersForClass.map(t => (
                       <option key={t.id} value={t.id}>{t.fullName}</option>
                     ))}
                   </select>

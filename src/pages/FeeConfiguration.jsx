@@ -14,6 +14,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { fees, academicSessions, classConfig } from '../services/api';
+import { useAcademicSession } from '../contexts/AcademicSessionContext';
 import { toast } from '../utils/toast';
 
 // Predefined fee type templates
@@ -56,6 +57,8 @@ const FREQUENCY_OPTIONS = [
 ];
 
 const FeeConfiguration = () => {
+  const { currentSession, sessionId, sessions: contextSessions } = useAcademicSession();
+  
   const [activeTab, setActiveTab] = useState('types');
   
   // Data state
@@ -92,8 +95,17 @@ const FeeConfiguration = () => {
   });
 
   useEffect(() => {
-    fetchInitialData();
-  }, []);
+    if (sessionId) {
+      setSelectedSessionId(sessionId);
+      fetchInitialData();
+    }
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (contextSessions?.length > 0) {
+      setSessions(contextSessions);
+    }
+  }, [contextSessions]);
 
   useEffect(() => {
     if (selectedSessionId) {
@@ -104,24 +116,17 @@ const FeeConfiguration = () => {
   const fetchInitialData = async () => {
     setLoading(true);
     try {
-      const [feeTypesRes, discountsRes, sessionsRes, gradesRes, currentSessionRes] = await Promise.all([
+      const [feeTypesRes, discountsRes, sessionsRes, gradesRes] = await Promise.all([
         fees.getTypes(),
         fees.getDiscounts(),
         academicSessions.getAll(),
-        classConfig.getGrades(),
-        academicSessions.getCurrent()
+        classConfig.getGrades({ academic_session_id: sessionId })
       ]);
 
       if (feeTypesRes?.success) setFeeTypes(feeTypesRes.data || []);
       if (discountsRes?.success) setDiscountTypes(discountsRes.data || []);
       if (sessionsRes?.success) setSessions(sessionsRes.data || []);
       if (gradesRes?.success) setGrades(gradesRes.data || []);
-      
-      if (currentSessionRes?.success && currentSessionRes.data) {
-        setSelectedSessionId(currentSessionRes.data.id);
-      } else if (sessionsRes?.data?.length > 0) {
-        setSelectedSessionId(sessionsRes.data[0].id);
-      }
     } catch (error) {
       console.error('Error fetching data:', error);
       toast.error('Failed to load data');

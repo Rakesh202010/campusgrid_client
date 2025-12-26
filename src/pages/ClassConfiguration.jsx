@@ -17,9 +17,12 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { classConfig, academicSessions } from '../services/api';
+import { useAcademicSession } from '../contexts/AcademicSessionContext';
 import { toast } from '../utils/toast';
 
 const ClassConfiguration = () => {
+  const { currentSession, sessionId, sessions: contextSessions } = useAcademicSession();
+  
   // Tab state
   const [activeTab, setActiveTab] = useState('grades'); // grades, sections, structure
 
@@ -28,7 +31,6 @@ const ClassConfiguration = () => {
   const [sections, setSections] = useState([]);
   const [classSections, setClassSections] = useState([]);
   const [sessions, setSessions] = useState([]);
-  const [currentSession, setCurrentSession] = useState(null);
   const [selectedSessionId, setSelectedSessionId] = useState(null);
   
   // Loading states
@@ -98,8 +100,18 @@ const ClassConfiguration = () => {
   const sectionTemplates = ['A', 'B', 'C', 'D', 'E', 'F'];
 
   useEffect(() => {
-    fetchInitialData();
-  }, []);
+    if (sessionId) {
+      setSelectedSessionId(sessionId);
+      fetchInitialData();
+    }
+  }, [sessionId]);
+
+  // Set sessions from context
+  useEffect(() => {
+    if (contextSessions?.length > 0) {
+      setSessions(contextSessions);
+    }
+  }, [contextSessions]);
 
   // Fetch class sections when selected session changes
   useEffect(() => {
@@ -111,24 +123,15 @@ const ClassConfiguration = () => {
   const fetchInitialData = async () => {
     setLoading(true);
     try {
-      const [gradesRes, sectionsRes, sessionsRes, currentSessionRes] = await Promise.all([
-        classConfig.getGrades(),
+      const [gradesRes, sectionsRes, sessionsRes] = await Promise.all([
+        classConfig.getGrades({ academic_session_id: sessionId }),
         classConfig.getSections(),
-        academicSessions.getAll(),
-        academicSessions.getCurrent()
+        academicSessions.getAll()
       ]);
 
       if (gradesRes?.success) setGrades(gradesRes.data || []);
       if (sectionsRes?.success) setSections(sectionsRes.data || []);
       if (sessionsRes?.success) setSessions(sessionsRes.data || []);
-      
-      if (currentSessionRes?.success && currentSessionRes.data) {
-        setCurrentSession(currentSessionRes.data);
-        setSelectedSessionId(currentSessionRes.data.id);
-      } else if (sessionsRes?.data?.length > 0) {
-        // Fallback to first session if no current session
-        setSelectedSessionId(sessionsRes.data[0].id);
-      }
     } catch (error) {
       console.error('Error fetching data:', error);
       toast.error('Failed to load configuration data');

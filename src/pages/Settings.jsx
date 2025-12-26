@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { User, Bell, Calendar, Sliders, ChevronRight, BookOpen, Layers, IndianRupee, Users, Clock, Building2 } from 'lucide-react';
+import { User, Bell, Calendar, Sliders, ChevronRight, BookOpen, Layers, IndianRupee, Users, Clock, Building2, Hash } from 'lucide-react';
 
 const Settings = () => {
   const navigate = useNavigate();
@@ -53,6 +53,13 @@ const Settings = () => {
       icon: Clock,
       path: '/settings/class-timings',
       color: 'bg-pink-100 text-pink-600'
+    },
+    { 
+      label: 'Number Generation', 
+      description: 'Configure admission number and roll number formats',
+      icon: Hash,
+      path: '/settings/number-settings',
+      color: 'bg-cyan-100 text-cyan-600'
     },
   ];
 

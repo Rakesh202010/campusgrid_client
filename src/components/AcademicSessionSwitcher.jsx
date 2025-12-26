@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Calendar, 
@@ -11,21 +11,16 @@ import {
   Settings,
   Loader2
 } from 'lucide-react';
-import { academicSessions } from '../services/api';
+import { useAcademicSession } from '../contexts/AcademicSessionContext';
 import { toast } from '../utils/toast';
 
 const AcademicSessionSwitcher = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const [sessions, setSessions] = useState([]);
-  const [currentSession, setCurrentSession] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [switching, setSwitching] = useState(false);
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
-
-  useEffect(() => {
-    fetchSessions();
-  }, []);
+  
+  const { currentSession, sessions, loading, switchSession, refreshSessions } = useAcademicSession();
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -39,28 +34,6 @@ const AcademicSessionSwitcher = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const fetchSessions = async () => {
-    try {
-      setLoading(true);
-      const [allSessionsRes, currentSessionRes] = await Promise.all([
-        academicSessions.getAll(),
-        academicSessions.getCurrent()
-      ]);
-
-      if (allSessionsRes?.success) {
-        setSessions(allSessionsRes.data || []);
-      }
-
-      if (currentSessionRes?.success && currentSessionRes.data) {
-        setCurrentSession(currentSessionRes.data);
-      }
-    } catch (error) {
-      console.error('Error fetching academic sessions:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleSetCurrent = async (session) => {
     if (session.id === currentSession?.id) {
       setIsOpen(false);
@@ -69,21 +42,15 @@ const AcademicSessionSwitcher = () => {
 
     try {
       setSwitching(true);
-      const response = await academicSessions.setCurrent(session.id);
+      const result = await switchSession(session.id);
       
-      if (response?.success) {
-        setCurrentSession(session);
+      if (result.success) {
         toast.success(`Switched to ${session.name}`);
-        
-        // Update sessions list to reflect the change
-        setSessions(prev => prev.map(s => ({
-          ...s,
-          isCurrent: s.id === session.id
-        })));
-        
         setIsOpen(false);
+        // Reload the page to refresh all data with new session
+        window.location.reload();
       } else {
-        toast.error(response?.message || 'Failed to switch session');
+        toast.error(result.message || 'Failed to switch session');
       }
     } catch (error) {
       console.error('Error switching session:', error);
@@ -160,7 +127,7 @@ const AcademicSessionSwitcher = () => {
           {currentSession ? (
             <>
               <p className="text-xs text-gray-500 leading-none">Academic Session</p>
-              <p className="text-sm font-semibold text-gray-800 leading-tight">{currentSession.code}</p>
+              <p className="text-sm font-semibold text-gray-800 leading-tight">{currentSession.code || currentSession.name}</p>
             </>
           ) : (
             <>
@@ -282,4 +249,3 @@ const AcademicSessionSwitcher = () => {
 };
 
 export default AcademicSessionSwitcher;
-
