@@ -577,6 +577,30 @@ export const fees = {
     apiRequest(`/api/fees/discounts/${id}`, {
       method: 'DELETE',
     }),
+
+  // Student Dues
+  getStudentDues: (studentId, params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/fees/dues/student/${studentId}${queryString ? `?${queryString}` : ''}`);
+  },
+
+  generateStudentDues: (data) =>
+    apiRequest('/api/fees/dues/generate/student', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  generateClassDues: (data) =>
+    apiRequest('/api/fees/dues/generate/class', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  calculateLateFees: (data) =>
+    apiRequest('/api/fees/dues/calculate-late-fees', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 };
 
 // People & User Configuration
@@ -891,6 +915,143 @@ export const dashboard = {
     return apiRequest(`/api/dashboard/stats${queryString ? `?${queryString}` : ''}`);
   },
   getQuickCounts: () => apiRequest('/api/dashboard/quick-counts'),
+};
+
+// Fee Settings
+export const feeSettings = {
+  // Receipt Templates
+  getTemplates: () => apiRequest('/api/fee-settings/templates'),
+  getTemplate: (id) => apiRequest(`/api/fee-settings/templates/${id}`),
+  getDefaultTemplate: () => apiRequest('/api/fee-settings/templates/default'),
+  createTemplate: (data) =>
+    apiRequest('/api/fee-settings/templates', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateTemplate: (id, data) =>
+    apiRequest(`/api/fee-settings/templates/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  deleteTemplate: (id) =>
+    apiRequest(`/api/fee-settings/templates/${id}`, { method: 'DELETE' }),
+  setDefaultTemplate: (id) =>
+    apiRequest(`/api/fee-settings/templates/${id}/set-default`, { method: 'POST' }),
+  duplicateTemplate: (id, data) =>
+    apiRequest(`/api/fee-settings/templates/${id}/duplicate`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  // School settings
+  getSchoolSettings: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/fee-settings/school${queryString ? `?${queryString}` : ''}`);
+  },
+  saveSchoolSettings: (data) =>
+    apiRequest('/api/fee-settings/school', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  
+  // Class settings
+  getClassSettings: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/fee-settings/class${queryString ? `?${queryString}` : ''}`);
+  },
+  saveClassSettings: (data) =>
+    apiRequest('/api/fee-settings/class', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  deleteClassSettings: (id) =>
+    apiRequest(`/api/fee-settings/class/${id}`, { method: 'DELETE' }),
+  
+  // Installments
+  getInstallments: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/fee-settings/installments${queryString ? `?${queryString}` : ''}`);
+  },
+  saveInstallments: (data) =>
+    apiRequest('/api/fee-settings/installments', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  
+  // Calendar
+  getCalendar: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/fee-settings/calendar${queryString ? `?${queryString}` : ''}`);
+  },
+  generateCalendar: (data) =>
+    apiRequest('/api/fee-settings/calendar/generate', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateCalendar: (id, data) =>
+    apiRequest(`/api/fee-settings/calendar/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  
+  // Effective settings
+  getEffectiveSettings: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/fee-settings/effective${queryString ? `?${queryString}` : ''}`);
+  },
+};
+
+// Fee Management
+export const feeManagement = {
+  getOverview: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/fee-management/overview${queryString ? `?${queryString}` : ''}`);
+  },
+  searchStudents: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/fee-management/students/search${queryString ? `?${queryString}` : ''}`);
+  },
+  getStudentFeeDetails: (studentId, params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/fee-management/students/${studentId}${queryString ? `?${queryString}` : ''}`);
+  },
+  collectFee: (data) =>
+    apiRequest('/api/fee-management/collect', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  getReceipt: (paymentId) => apiRequest(`/api/fee-management/receipt/${paymentId}`),
+  cancelPayment: (paymentId, data) =>
+    apiRequest(`/api/fee-management/cancel/${paymentId}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  getCollectionReport: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/fee-management/reports/collection${queryString ? `?${queryString}` : ''}`);
+  },
+  getPendingDuesReport: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/fee-management/reports/pending-dues${queryString ? `?${queryString}` : ''}`);
+  },
+  getClassWiseReport: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/fee-management/reports/class-wise${queryString ? `?${queryString}` : ''}`);
+  },
+  getFeeTypeWiseReport: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/fee-management/reports/fee-type-wise${queryString ? `?${queryString}` : ''}`);
+  },
+  generateDues: (data) =>
+    apiRequest('/api/fee-management/generate-dues', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  generateStudentDues: (data) =>
+    apiRequest('/api/fee-management/generate-student-dues', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 };
 
 export default {

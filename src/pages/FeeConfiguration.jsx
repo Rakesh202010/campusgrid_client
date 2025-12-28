@@ -49,11 +49,24 @@ const CATEGORY_OPTIONS = [
 ];
 
 const FREQUENCY_OPTIONS = [
-  { value: 'one-time', label: 'One-Time' },
+  { value: 'one_time', label: 'One-Time' },
   { value: 'monthly', label: 'Monthly' },
   { value: 'quarterly', label: 'Quarterly' },
-  { value: 'term', label: 'Per Term' },
-  { value: 'annual', label: 'Annual' },
+  { value: 'half_yearly', label: 'Half-Yearly' },
+  { value: 'annual', label: 'Annual/Yearly' },
+];
+
+const APPLICABILITY_OPTIONS = [
+  { value: 'full_year', label: 'Full Year', description: 'Applies to all months' },
+  { value: 'specific_months', label: 'Specific Months', description: 'Only applies in selected months' },
+  { value: 'term_wise', label: 'Term-wise', description: 'Applies per academic term' },
+];
+
+const MONTHS = [
+  { value: 1, label: 'January' }, { value: 2, label: 'February' }, { value: 3, label: 'March' },
+  { value: 4, label: 'April' }, { value: 5, label: 'May' }, { value: 6, label: 'June' },
+  { value: 7, label: 'July' }, { value: 8, label: 'August' }, { value: 9, label: 'September' },
+  { value: 10, label: 'October' }, { value: 11, label: 'November' }, { value: 12, label: 'December' },
 ];
 
 const FeeConfiguration = () => {
@@ -81,6 +94,7 @@ const FeeConfiguration = () => {
   // Form states
   const [feeTypeForm, setFeeTypeForm] = useState({
     name: '', code: '', description: '', category: 'academic', frequency: 'monthly',
+    applicabilityType: 'full_year', applicableMonths: [], isProratedOnJoin: false,
     isMandatory: true, isRefundable: false, taxApplicable: false, taxPercentage: 0,
     lateFeeApplicable: false, lateFeeType: 'fixed', lateFeeValue: 0, isActive: true
   });
@@ -156,6 +170,9 @@ const FeeConfiguration = () => {
       setFeeTypeForm({
         name: feeType.name, code: feeType.code, description: feeType.description || '',
         category: feeType.category, frequency: feeType.frequency,
+        applicabilityType: feeType.applicabilityType || 'full_year',
+        applicableMonths: feeType.applicableMonths || [],
+        isProratedOnJoin: feeType.isProratedOnJoin || false,
         isMandatory: feeType.isMandatory, isRefundable: feeType.isRefundable,
         taxApplicable: feeType.taxApplicable, taxPercentage: feeType.taxPercentage || 0,
         lateFeeApplicable: feeType.lateFeeApplicable, lateFeeType: feeType.lateFeeType || 'fixed',
@@ -165,6 +182,7 @@ const FeeConfiguration = () => {
       setEditingItem(null);
       setFeeTypeForm({
         name: '', code: '', description: '', category: 'academic', frequency: 'monthly',
+        applicabilityType: 'full_year', applicableMonths: [], isProratedOnJoin: false,
         isMandatory: true, isRefundable: false, taxApplicable: false, taxPercentage: 0,
         lateFeeApplicable: false, lateFeeType: 'fixed', lateFeeValue: 0, isActive: true
       });
@@ -531,6 +549,14 @@ const FeeConfiguration = () => {
                     <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded-full">
                       {FREQUENCY_OPTIONS.find(f => f.value === feeType.frequency)?.label || feeType.frequency}
                     </span>
+                    {feeType.applicabilityType === 'specific_months' && feeType.applicableMonths?.length > 0 && (
+                      <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-700 rounded-full">
+                        {feeType.applicableMonths.length} months
+                      </span>
+                    )}
+                    {feeType.isProratedOnJoin && (
+                      <span className="px-2 py-0.5 text-xs bg-purple-100 text-purple-700 rounded-full">Prorated</span>
+                    )}
                     {feeType.isMandatory && (
                       <span className="px-2 py-0.5 text-xs bg-red-100 text-red-600 rounded-full">Required</span>
                     )}
@@ -837,6 +863,65 @@ const FeeConfiguration = () => {
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
                 />
               </div>
+
+              {/* Applicability Settings */}
+              {(feeTypeForm.frequency === 'monthly' || feeTypeForm.frequency === 'quarterly') && (
+                <div className="p-4 bg-blue-50 rounded-lg space-y-3 border border-blue-200">
+                  <h4 className="font-medium text-blue-800 text-sm">Applicability Settings</h4>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">When does this fee apply?</label>
+                    <select
+                      value={feeTypeForm.applicabilityType}
+                      onChange={(e) => setFeeTypeForm({ ...feeTypeForm, applicabilityType: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                    >
+                      {APPLICABILITY_OPTIONS.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label} - {opt.description}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {feeTypeForm.applicabilityType === 'specific_months' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Select Applicable Months</label>
+                      <div className="grid grid-cols-4 gap-2">
+                        {MONTHS.map(month => (
+                          <label key={month.value} className="flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={feeTypeForm.applicableMonths?.includes(month.value)}
+                              onChange={(e) => {
+                                const months = feeTypeForm.applicableMonths || [];
+                                if (e.target.checked) {
+                                  setFeeTypeForm({ ...feeTypeForm, applicableMonths: [...months, month.value] });
+                                } else {
+                                  setFeeTypeForm({ ...feeTypeForm, applicableMonths: months.filter(m => m !== month.value) });
+                                }
+                              }}
+                              className="w-4 h-4 text-blue-600 rounded"
+                            />
+                            {month.label.slice(0, 3)}
+                          </label>
+                        ))}
+                      </div>
+                      <p className="text-xs text-blue-600 mt-2">
+                        Tip: For transport fee, select only school working months (exclude summer vacation months)
+                      </p>
+                    </div>
+                  )}
+
+                  <label className="flex items-center gap-2 pt-2">
+                    <input
+                      type="checkbox"
+                      checked={feeTypeForm.isProratedOnJoin}
+                      onChange={(e) => setFeeTypeForm({ ...feeTypeForm, isProratedOnJoin: e.target.checked })}
+                      className="w-4 h-4 text-blue-600 rounded"
+                    />
+                    <span className="text-sm text-gray-700">Prorate for mid-month admissions</span>
+                  </label>
+                </div>
+              )}
 
               <div className="flex flex-wrap gap-4">
                 <label className="flex items-center gap-2">

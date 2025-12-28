@@ -25,6 +25,8 @@ import SubjectAssignment from './pages/SubjectAssignment';
 import ClassTimingConfiguration from './pages/ClassTimingConfiguration';
 import DepartmentConfiguration from './pages/DepartmentConfiguration';
 import NumberConfiguration from './pages/NumberConfiguration';
+import FeePaymentSettings from './pages/FeePaymentSettings';
+import FeeReceipt from './pages/FeeReceipt';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -75,6 +77,16 @@ function App() {
         />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        
+        {/* Receipt Page - Opens in new tab */}
+        <Route 
+          path="/fee-receipt" 
+          element={
+            <ProtectedRoute>
+              <FeeReceipt />
+            </ProtectedRoute>
+          } 
+        />
 
         {/* Protected Routes */}
         <Route 
@@ -108,6 +120,7 @@ function App() {
           <Route path="settings/class-timings" element={<ClassTimingConfiguration />} />
           <Route path="settings/departments" element={<DepartmentConfiguration />} />
           <Route path="settings/number-settings" element={<NumberConfiguration />} />
+          <Route path="settings/fee-payment" element={<FeePaymentSettings />} />
           <Route path="change-password" element={<ChangePassword />} />
         </Route>
 

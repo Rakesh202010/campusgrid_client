@@ -81,7 +81,10 @@ const Students = () => {
       usesTransport: false,
       pickupPoint: '',
       previousSchool: { name: '', address: '', class: '', tcNumber: '' },
-      parents: []
+      parents: [],
+      // Fee Settings
+      paymentFrequency: '', // Empty = use class/school default
+      customFeeStructureId: '',
     };
   }
 
@@ -460,7 +463,7 @@ const Students = () => {
       {/* Header */}
       <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 rounded-3xl p-6 text-white shadow-xl">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
+        <div>
             <h1 className="text-3xl font-bold flex items-center gap-3">
               <Users className="w-9 h-9" />
               Student Management
@@ -468,7 +471,7 @@ const Students = () => {
             <p className="text-white/80 mt-1">
               Manage student admissions, profiles, and records
             </p>
-          </div>
+        </div>
 
           <div className="flex items-center gap-3">
             <button
@@ -491,9 +494,9 @@ const Students = () => {
             >
               <UserPlus className="w-5 h-5" />
               Add Student
-            </button>
+        </button>
           </div>
-        </div>
+      </div>
 
         {/* Stats */}
         {stats && (
@@ -532,8 +535,8 @@ const Students = () => {
           {/* Search */}
           <div className="relative flex-1 min-w-[250px]">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
+          <input
+            type="text"
               placeholder="Search by name, admission number, phone..."
               value={filters.search}
               onChange={(e) => {
@@ -541,8 +544,8 @@ const Students = () => {
                 setPagination(prev => ({ ...prev, page: 1 }));
               }}
               className="w-full pl-12 pr-4 py-3 bg-gray-50 border-0 rounded-xl focus:ring-2 focus:ring-teal-500"
-            />
-          </div>
+          />
+        </div>
 
           {/* Class Filter */}
           <select
@@ -583,7 +586,7 @@ const Students = () => {
             className="p-3 text-gray-600 hover:bg-gray-100 rounded-xl"
           >
             <RefreshCw className="w-5 h-5" />
-          </button>
+        </button>
         </div>
       </div>
 
@@ -591,7 +594,7 @@ const Students = () => {
       <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead>
+          <thead>
               <tr className="bg-gray-50 border-b border-gray-100">
                 <th className="px-4 py-4 text-left text-sm font-semibold text-gray-600">Student</th>
                 <th className="px-4 py-4 text-left text-sm font-semibold text-gray-600">Admission No.</th>
@@ -601,8 +604,8 @@ const Students = () => {
                 <th className="px-4 py-4 text-left text-sm font-semibold text-gray-600">Contact</th>
                 <th className="px-4 py-4 text-center text-sm font-semibold text-gray-600">Status</th>
                 <th className="px-4 py-4 text-center text-sm font-semibold text-gray-600">Actions</th>
-              </tr>
-            </thead>
+            </tr>
+          </thead>
             <tbody className="divide-y divide-gray-100">
               {studentsList.length === 0 ? (
                 <tr>
@@ -614,21 +617,21 @@ const Students = () => {
                 </tr>
               ) : (
                 studentsList.map(student => (
-                  <tr key={student.id} className="hover:bg-gray-50 transition-colors">
+              <tr key={student.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-teal-500 to-cyan-500 flex items-center justify-center text-white font-bold">
                           {student.firstName?.[0]}{student.lastName?.[0]}
-                        </div>
-                        <div>
+                    </div>
+                    <div>
                           <p className="font-medium text-gray-800">{student.fullName}</p>
                           <p className="text-xs text-gray-500">{student.email || 'No email'}</p>
-                        </div>
-                      </div>
-                    </td>
+                    </div>
+                  </div>
+                </td>
                     <td className="px-4 py-4">
                       <span className="font-mono text-sm text-gray-700">{student.admissionNumber || '-'}</span>
-                    </td>
+                </td>
                     <td className="px-4 py-4">
                       <span className="text-gray-700">{student.className || 'Not assigned'}</span>
                     </td>
@@ -642,8 +645,8 @@ const Students = () => {
                         'bg-gray-100 text-gray-700'
                       }`}>
                         {student.gender || 'N/A'}
-                      </span>
-                    </td>
+                  </span>
+                </td>
                     <td className="px-4 py-4">
                       <div className="text-sm text-gray-600">
                         {student.phone && (
@@ -656,9 +659,9 @@ const Students = () => {
                     </td>
                     <td className="px-4 py-4 text-center">
                       <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(student.status)}`}>
-                        {student.status}
-                      </span>
-                    </td>
+                    {student.status}
+                  </span>
+                </td>
                     <td className="px-4 py-4">
                       <div className="flex items-center justify-center gap-1">
                         <button
@@ -667,7 +670,7 @@ const Students = () => {
                           title="View"
                         >
                           <Eye className="w-4 h-4" />
-                        </button>
+                    </button>
                         <button
                           onClick={() => navigate(`/students/${student.id}?mode=edit`)}
                           className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
@@ -681,17 +684,17 @@ const Students = () => {
                           title="Delete"
                         >
                           <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                    </button>
+                  </div>
+                </td>
+              </tr>
                 ))
               )}
-            </tbody>
-          </table>
-        </div>
+          </tbody>
+        </table>
+      </div>
 
-        {/* Pagination */}
+      {/* Pagination */}
         {pagination.totalPages > 1 && (
           <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
             <p className="text-sm text-gray-500">
@@ -726,7 +729,7 @@ const Students = () => {
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl my-8">
             {/* Modal Header */}
             <div className="bg-gradient-to-r from-teal-600 to-cyan-600 p-6 rounded-t-3xl text-white">
-              <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <User className="w-8 h-8" />
                   <div>
@@ -737,12 +740,12 @@ const Students = () => {
                     <p className="text-white/70 text-sm">
                       {modalMode === 'add' ? 'Fill in the student information' : 
                        formData.admissionNumber || 'Student Profile'}
-                    </p>
+        </p>
                   </div>
                 </div>
                 <button onClick={handleCloseModal} className="p-2 hover:bg-white/20 rounded-lg">
                   <X className="w-6 h-6" />
-                </button>
+          </button>
               </div>
 
               {/* Tabs */}
@@ -765,10 +768,10 @@ const Students = () => {
                   >
                     <tab.icon className="w-4 h-4" />
                     {tab.label}
-                  </button>
+          </button>
                 ))}
-              </div>
-            </div>
+        </div>
+      </div>
 
             {/* Modal Body */}
             <div className="p-6 max-h-[60vh] overflow-y-auto">
@@ -1423,6 +1426,39 @@ const Students = () => {
                           />
                         </div>
                       )}
+                    </div>
+                  </div>
+
+                  {/* Fee Settings */}
+                  <div className="border-t pt-4">
+                    <h4 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-green-500" />
+                      Fee Payment Settings
+                    </h4>
+                    <div className="bg-green-50 p-4 rounded-xl">
+                      <div className="grid grid-cols-1 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Payment Frequency
+                            <span className="text-gray-400 font-normal ml-1">(Optional)</span>
+                          </label>
+                          <select
+                            value={formData.paymentFrequency || ''}
+                            onChange={(e) => handleInputChange('paymentFrequency', e.target.value)}
+                            disabled={modalMode === 'view'}
+                            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 disabled:bg-gray-100"
+                          >
+                            <option value="">Use Class/School Default</option>
+                            <option value="monthly">Monthly</option>
+                            <option value="quarterly">Quarterly (Every 3 months)</option>
+                            <option value="half_yearly">Half-Yearly (Every 6 months)</option>
+                            <option value="yearly">Yearly (Annual)</option>
+                          </select>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Override default payment schedule for this student (e.g., for scholarship students)
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   </div>
 

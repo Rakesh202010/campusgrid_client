@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { User, Bell, Calendar, Sliders, ChevronRight, BookOpen, Layers, IndianRupee, Users, Clock, Building2, Hash } from 'lucide-react';
+import { User, Bell, Calendar, Sliders, ChevronRight, BookOpen, Layers, IndianRupee, Users, Clock, Building2, Hash, CreditCard } from 'lucide-react';
 
 const Settings = () => {
   const navigate = useNavigate();
@@ -39,6 +39,13 @@ const Settings = () => {
       icon: IndianRupee,
       path: '/settings/fees',
       color: 'bg-green-100 text-green-600'
+    },
+    { 
+      label: 'Fee Payment Settings', 
+      description: 'Payment frequency, due dates, late fees & discounts',
+      icon: CreditCard,
+      path: '/settings/fee-payment',
+      color: 'bg-emerald-100 text-emerald-600'
     },
     { 
       label: 'Staff & Users', 
