@@ -27,6 +27,7 @@ import DepartmentConfiguration from './pages/DepartmentConfiguration';
 import NumberConfiguration from './pages/NumberConfiguration';
 import FeePaymentSettings from './pages/FeePaymentSettings';
 import FeeReceipt from './pages/FeeReceipt';
+import StaffUsersConfiguration from './pages/StaffUsersConfiguration';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -116,7 +117,7 @@ function App() {
           <Route path="settings/class-configuration" element={<ClassConfiguration />} />
           <Route path="settings/subjects" element={<SubjectConfiguration />} />
           <Route path="settings/fees" element={<FeeConfiguration />} />
-          <Route path="settings/people" element={<PeopleConfiguration />} />
+          <Route path="settings/people" element={<StaffUsersConfiguration />} />
           <Route path="settings/class-timings" element={<ClassTimingConfiguration />} />
           <Route path="settings/departments" element={<DepartmentConfiguration />} />
           <Route path="settings/number-settings" element={<NumberConfiguration />} />

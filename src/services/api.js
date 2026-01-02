@@ -608,7 +608,30 @@ export const people = {
   // Stats
   getStats: () => apiRequest('/api/people/stats'),
 
-  // User Roles
+  // Staff Departments (Non-Teaching)
+  getDepartments: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/people/departments${queryString ? `?${queryString}` : ''}`);
+  },
+
+  createDepartment: (data) =>
+    apiRequest('/api/people/departments', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  updateDepartment: (id, data) =>
+    apiRequest(`/api/people/departments/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  deleteDepartment: (id) =>
+    apiRequest(`/api/people/departments/${id}`, {
+      method: 'DELETE',
+    }),
+
+  // User Roles with RBAC Permissions
   getRoles: (params = {}) => {
     const queryString = new URLSearchParams(params).toString();
     return apiRequest(`/api/people/roles${queryString ? `?${queryString}` : ''}`);
@@ -629,6 +652,16 @@ export const people = {
   deleteRole: (id) =>
     apiRequest(`/api/people/roles/${id}`, {
       method: 'DELETE',
+    }),
+
+  // Role Permissions (RBAC)
+  getRolePermissions: (roleId) =>
+    apiRequest(`/api/people/roles/${roleId}/permissions`),
+
+  updateRolePermissions: (roleId, permissions) =>
+    apiRequest(`/api/people/roles/${roleId}/permissions`, {
+      method: 'PUT',
+      body: JSON.stringify({ permissions }),
     }),
 
   // Staff Members
@@ -652,6 +685,25 @@ export const people = {
   deleteStaff: (id) =>
     apiRequest(`/api/people/staff/${id}`, {
       method: 'DELETE',
+    }),
+
+  // Staff Access/Login Management
+  updateStaffAccess: (staffId, accessData) =>
+    apiRequest(`/api/people/staff/${staffId}/access`, {
+      method: 'PUT',
+      body: JSON.stringify(accessData),
+    }),
+
+  resetStaffPassword: (staffId, data) =>
+    apiRequest(`/api/people/staff/${staffId}/reset-password`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  toggleStaffLogin: (staffId, enable) =>
+    apiRequest(`/api/people/staff/${staffId}/toggle-login`, {
+      method: 'POST',
+      body: JSON.stringify({ enable }),
     }),
 
   // Parents

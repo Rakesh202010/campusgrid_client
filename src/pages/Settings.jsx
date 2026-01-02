@@ -49,7 +49,7 @@ const Settings = () => {
     },
     { 
       label: 'Staff & Users', 
-      description: 'Manage non-teaching staff and user roles',
+      description: 'Departments, non-teaching staff, roles & RBAC permissions',
       icon: Users,
       path: '/settings/people',
       color: 'bg-orange-100 text-orange-600'
