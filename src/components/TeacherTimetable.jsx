@@ -268,14 +268,23 @@ const TeacherTimetable = () => {
       const res = await timetable.save(entryData);
       
       if (res?.success) {
-        // Update local state
+        // Get display names for local state update
+        const subject = subjectsList.find(s => s.id === data.subjectId);
+        const classSection = classSections.find(c => c.id === (viewMode === 'class' ? selectedClass?.id : data.classSectionId));
+        const teacher = teachersList.find(t => t.id === (viewMode === 'teacher' ? selectedTeacher?.id : data.teacherId));
+        
+        // Update local state with display names
         const key = `${day}-${periodNumber}`;
         setTimetableData(prev => ({
           ...prev,
           [key]: {
             ...data,
             dayOfWeek: day,
-            periodNumber: periodNumber
+            periodNumber: periodNumber,
+            subjectName: subject?.name || '',
+            className: classSection?.gradeDisplayName || classSection?.gradeName || '',
+            sectionName: classSection?.sectionDisplayName || classSection?.sectionName || '',
+            teacherName: teacher?.fullName || ''
           }
         }));
         setShowAddModal(null);
@@ -634,7 +643,9 @@ const TeacherTimetable = () => {
                                     <div className={`absolute left-0 top-0 bottom-0 w-1 ${color.accent} rounded-l-lg`}></div>
                                     <p className={`font-semibold ${color.text} text-sm truncate`}>{entry.subjectName}</p>
                                     <p className="text-xs text-gray-500 truncate mt-1">
-                                      {viewMode === 'teacher' ? entry.className : entry.teacherName}
+                                      {viewMode === 'teacher' 
+                                        ? `${entry.className || ''}${entry.sectionName ? ` - ${entry.sectionName}` : ''}`
+                                        : entry.teacherName}
                                     </p>
                                     <button onClick={() => handleRemoveEntry(day, row.periodNumber)}
                                       className="absolute top-1 right-1 p-1 opacity-0 group-hover:opacity-100 hover:bg-red-100 rounded-lg transition-all">
