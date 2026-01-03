@@ -496,6 +496,49 @@ export const subjects = {
     }),
 };
 
+// Subject Masters (Categories & Types)
+export const subjectMasters = {
+  // Categories
+  getCategories: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/subject-masters/categories${queryString ? `?${queryString}` : ''}`);
+  },
+  createCategory: (data) =>
+    apiRequest('/api/subject-masters/categories', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateCategory: (id, data) =>
+    apiRequest(`/api/subject-masters/categories/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  deleteCategory: (id) =>
+    apiRequest(`/api/subject-masters/categories/${id}`, {
+      method: 'DELETE',
+    }),
+
+  // Types
+  getTypes: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/subject-masters/types${queryString ? `?${queryString}` : ''}`);
+  },
+  createType: (data) =>
+    apiRequest('/api/subject-masters/types', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateType: (id, data) =>
+    apiRequest(`/api/subject-masters/types/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  deleteType: (id) =>
+    apiRequest(`/api/subject-masters/types/${id}`, {
+      method: 'DELETE',
+    }),
+};
+
 // Fee & Finance Configuration
 export const fees = {
   // Fee Types

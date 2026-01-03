@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { User, Bell, Calendar, Sliders, ChevronRight, BookOpen, Layers, IndianRupee, Users, Clock, Building2, Hash, CreditCard, KeyRound } from 'lucide-react';
+import { User, Bell, Calendar, Sliders, ChevronRight, BookOpen, Layers, IndianRupee, Users, Clock, Hash, CreditCard, KeyRound } from 'lucide-react';
 
 const Settings = () => {
   const navigate = useNavigate();
@@ -13,13 +13,6 @@ const Settings = () => {
       color: 'bg-blue-100 text-blue-600'
     },
     { 
-      label: 'Departments', 
-      description: 'Manage academic departments and their heads',
-      icon: Building2,
-      path: '/settings/departments',
-      color: 'bg-teal-100 text-teal-600'
-    },
-    { 
       label: 'Class & Section', 
       description: 'Configure classes, sections, and structure',
       icon: BookOpen,
@@ -28,7 +21,7 @@ const Settings = () => {
     },
     { 
       label: 'Subjects & Curriculum', 
-      description: 'Manage subjects and assign to classes',
+      description: 'Manage departments, subjects and assign to classes',
       icon: Layers,
       path: '/settings/subjects',
       color: 'bg-indigo-100 text-indigo-600'
