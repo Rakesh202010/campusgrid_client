@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { User, Bell, Calendar, Sliders, ChevronRight, BookOpen, Layers, IndianRupee, Users, Clock, Building2, Hash, CreditCard } from 'lucide-react';
+import { User, Bell, Calendar, Sliders, ChevronRight, BookOpen, Layers, IndianRupee, Users, Clock, Building2, Hash, CreditCard, KeyRound } from 'lucide-react';
 
 const Settings = () => {
   const navigate = useNavigate();
@@ -67,6 +67,13 @@ const Settings = () => {
       icon: Hash,
       path: '/settings/number-settings',
       color: 'bg-cyan-100 text-cyan-600'
+    },
+    { 
+      label: 'User Login Management', 
+      description: 'Enable login access and set passwords for all user types',
+      icon: KeyRound,
+      path: '/settings/user-login',
+      color: 'bg-violet-100 text-violet-600'
     },
   ];
 

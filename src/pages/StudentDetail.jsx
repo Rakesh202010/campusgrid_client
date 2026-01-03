@@ -4,9 +4,9 @@ import {
   User, Phone, Mail, MapPin, Calendar, GraduationCap, Users, FileText,
   Heart, Bus, Building, ChevronLeft, Edit, Save, X, RefreshCw,
   BookOpen, IndianRupee, Clock, Award, AlertCircle, CheckCircle,
-  Camera, Trash2, Plus, UserCheck, Home, Briefcase
+  Camera, Trash2, Plus, UserCheck, Home, Briefcase, Search, Link, UserPlus
 } from 'lucide-react';
-import { students, classConfig, academicSessions } from '../services/api';
+import { students, classConfig, academicSessions, people } from '../services/api';
 import { toast } from '../utils/toast';
 
 const StudentDetail = () => {
@@ -25,6 +25,32 @@ const StudentDetail = () => {
   const [editing, setEditing] = useState(isEditMode);
   const [activeMenu, setActiveMenu] = useState('personal');
   const [formData, setFormData] = useState(null);
+
+  // Parent management state
+  const [showParentModal, setShowParentModal] = useState(false);
+  const [editingParent, setEditingParent] = useState(null);
+  const [parentFormData, setParentFormData] = useState({
+    firstName: '',
+    lastName: '',
+    relationship: 'father',
+    phone: '',
+    email: '',
+    occupation: '',
+    address: '',
+    city: '',
+    state: '',
+    pincode: '',
+    isPrimary: false,
+    isGuardian: false
+  });
+  const [savingParent, setSavingParent] = useState(false);
+  
+  // Existing parent selection state
+  const [parentMode, setParentMode] = useState('new'); // 'new' or 'existing'
+  const [existingParents, setExistingParents] = useState([]);
+  const [parentSearchTerm, setParentSearchTerm] = useState('');
+  const [selectedExistingParent, setSelectedExistingParent] = useState(null);
+  const [loadingParents, setLoadingParents] = useState(false);
 
   // Menu items
   const menuItems = [
@@ -142,6 +168,125 @@ const StudentDetail = () => {
       dropped: 'bg-red-100 text-red-700 border-red-200'
     };
     return colors[status] || colors.active;
+  };
+
+  // Parent management functions
+  const resetParentForm = () => {
+    setParentFormData({
+      firstName: '',
+      lastName: '',
+      relationship: 'father',
+      phone: '',
+      email: '',
+      occupation: '',
+      address: '',
+      city: '',
+      state: '',
+      pincode: '',
+      isPrimary: false,
+      isGuardian: false
+    });
+    setEditingParent(null);
+    setParentMode('new');
+    setSelectedExistingParent(null);
+    setParentSearchTerm('');
+  };
+
+  const fetchExistingParents = async () => {
+    setLoadingParents(true);
+    try {
+      const res = await people.getParents({ limit: 500, include_students: 'true' });
+      if (res?.success) {
+        // Filter out parents already linked to this student
+        const linkedParentIds = (student.parents || []).map(p => p.id);
+        const availableParents = (res.data || []).filter(p => !linkedParentIds.includes(p.id));
+        setExistingParents(availableParents);
+      }
+    } catch (e) {
+      console.error('Error fetching parents:', e);
+    } finally {
+      setLoadingParents(false);
+    }
+  };
+
+  const handleEditParent = (parent) => {
+    setEditingParent(parent);
+    setParentFormData({
+      firstName: parent.firstName || '',
+      lastName: parent.lastName || '',
+      relationship: parent.relationship || parent.parentType || 'father',
+      phone: parent.phone || '',
+      email: parent.email || '',
+      occupation: parent.occupation || '',
+      address: parent.address || '',
+      city: parent.city || '',
+      state: parent.state || '',
+      pincode: parent.pincode || '',
+      isPrimary: parent.isPrimary || false,
+      isGuardian: parent.isGuardian || false
+    });
+    setShowParentModal(true);
+  };
+
+  const handleSaveParent = async () => {
+    setSavingParent(true);
+    try {
+      let res;
+      
+      if (parentMode === 'existing' && selectedExistingParent) {
+        // Link existing parent to this student
+        res = await students.linkParent(id, {
+          parentId: selectedExistingParent.id,
+          relationship: parentFormData.relationship,
+          isPrimary: parentFormData.isPrimary,
+          isGuardian: parentFormData.isGuardian
+        });
+      } else if (editingParent) {
+        // Update existing parent
+        res = await students.updateParent(id, editingParent.id, parentFormData);
+      } else {
+        // Create new parent
+        if (!parentFormData.firstName) {
+          toast.error('First name is required');
+          setSavingParent(false);
+          return;
+        }
+        res = await students.addParent(id, parentFormData);
+      }
+
+      if (res?.success) {
+        toast.success(
+          parentMode === 'existing' ? 'Parent linked successfully' :
+          editingParent ? 'Parent updated successfully' : 'Parent added successfully'
+        );
+        setShowParentModal(false);
+        resetParentForm();
+        fetchStudentData(); // Refresh student data
+      } else {
+        toast.error(res?.message || 'Failed to save parent');
+      }
+    } catch (e) {
+      console.error('Error saving parent:', e);
+      toast.error('Failed to save parent');
+    } finally {
+      setSavingParent(false);
+    }
+  };
+
+  const handleDeleteParent = async (parentId) => {
+    if (!confirm('Are you sure you want to remove this parent/guardian?')) return;
+
+    try {
+      const res = await students.deleteParent(id, parentId);
+      if (res?.success) {
+        toast.success('Parent removed successfully');
+        fetchStudentData();
+      } else {
+        toast.error(res?.message || 'Failed to remove parent');
+      }
+    } catch (e) {
+      toast.error('Failed to remove parent');
+    }
   };
 
   if (loading) {
@@ -718,30 +863,55 @@ const StudentDetail = () => {
               {/* Parents */}
               {activeMenu === 'parents' && (
                 <div className="space-y-6">
-                  <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                    <Users className="w-5 h-5 text-teal-600" />
-                    Parents / Guardians
-                  </h2>
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                      <Users className="w-5 h-5 text-teal-600" />
+                      Parents / Guardians
+                    </h2>
+                    <button
+                      onClick={() => setShowParentModal(true)}
+                      className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Parent
+                    </button>
+                  </div>
 
                   {student.parents?.length > 0 ? (
                     <div className="space-y-4">
                       {student.parents.map((parent, idx) => (
-                        <div key={idx} className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+                        <div key={parent.id || idx} className="bg-gray-50 rounded-xl p-6 border border-gray-200">
                           <div className="flex items-start justify-between mb-4">
                             <div className="flex items-center gap-3">
                               <div className="w-12 h-12 rounded-full bg-gradient-to-br from-teal-500 to-cyan-500 flex items-center justify-center text-white font-bold text-lg">
                                 {parent.firstName?.[0]}{parent.lastName?.[0]}
                               </div>
                               <div>
-                                <p className="font-semibold text-gray-800">{parent.fullName}</p>
-                                <p className="text-sm text-gray-500 capitalize">{parent.relationship}</p>
+                                <p className="font-semibold text-gray-800">{parent.fullName || `${parent.firstName} ${parent.lastName || ''}`}</p>
+                                <p className="text-sm text-gray-500 capitalize">{parent.relationship || parent.parentType}</p>
                               </div>
                             </div>
-                            {parent.isPrimary && (
-                              <span className="px-3 py-1 bg-teal-100 text-teal-700 rounded-full text-xs font-medium">
-                                Primary Contact
-                              </span>
-                            )}
+                            <div className="flex items-center gap-2">
+                              {parent.isPrimary && (
+                                <span className="px-3 py-1 bg-teal-100 text-teal-700 rounded-full text-xs font-medium">
+                                  Primary Contact
+                                </span>
+                              )}
+                              <button
+                                onClick={() => handleEditParent(parent)}
+                                className="p-2 hover:bg-gray-200 rounded-lg transition-colors text-gray-600"
+                                title="Edit"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteParent(parent.id)}
+                                className="p-2 hover:bg-red-100 rounded-lg transition-colors text-red-600"
+                                title="Delete"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                             <div className="flex items-center gap-2 text-gray-600">
@@ -757,6 +927,14 @@ const StudentDetail = () => {
                               {parent.occupation || '-'}
                             </div>
                           </div>
+                          {(parent.address || parent.city) && (
+                            <div className="mt-3 pt-3 border-t border-gray-200">
+                              <div className="flex items-center gap-2 text-sm text-gray-600">
+                                <Home className="w-4 h-4" />
+                                {[parent.address, parent.city, parent.state, parent.pincode].filter(Boolean).join(', ') || '-'}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -764,12 +942,7 @@ const StudentDetail = () => {
                     <div className="text-center py-12 text-gray-400">
                       <Users className="w-16 h-16 mx-auto mb-4 opacity-50" />
                       <p className="text-lg">No parents/guardians added</p>
-                      {editing && (
-                        <button className="mt-4 px-4 py-2 bg-teal-600 text-white rounded-xl">
-                          <Plus className="w-4 h-4 inline mr-2" />
-                          Add Parent
-                        </button>
-                      )}
+                      <p className="text-sm mt-1">Click "Add Parent" to add parent or guardian details</p>
                     </div>
                   )}
                 </div>
@@ -1004,6 +1177,358 @@ const StudentDetail = () => {
           </div>
         </div>
       </div>
+
+      {/* Parent Add/Edit Modal */}
+      {showParentModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-100">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-gray-900">
+                  {editingParent ? 'Edit Parent/Guardian' : 'Add Parent/Guardian'}
+                </h2>
+                <button
+                  onClick={() => {
+                    setShowParentModal(false);
+                    resetParentForm();
+                  }}
+                  className="p-2 hover:bg-gray-100 rounded-lg"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Mode Selection - Only show when not editing */}
+              {!editingParent && (
+                <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
+                  <button
+                    onClick={() => {
+                      setParentMode('new');
+                      setSelectedExistingParent(null);
+                    }}
+                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-all ${
+                      parentMode === 'new'
+                        ? 'bg-white text-teal-700 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-800'
+                    }`}
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    Create New
+                  </button>
+                  <button
+                    onClick={() => {
+                      setParentMode('existing');
+                      fetchExistingParents();
+                    }}
+                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-all ${
+                      parentMode === 'existing'
+                        ? 'bg-white text-teal-700 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-800'
+                    }`}
+                  >
+                    <Link className="w-4 h-4" />
+                    Link Existing
+                  </button>
+                </div>
+              )}
+
+              {/* Existing Parent Selection */}
+              {parentMode === 'existing' && !editingParent && (
+                <div className="space-y-4">
+                  {/* Search */}
+                  <div className="relative">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input
+                      type="text"
+                      value={parentSearchTerm}
+                      onChange={(e) => setParentSearchTerm(e.target.value)}
+                      placeholder="Search by name, phone, or email..."
+                      className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500"
+                    />
+                  </div>
+
+                  {/* Parents List */}
+                  <div className="max-h-64 overflow-y-auto border border-gray-200 rounded-xl">
+                    {loadingParents ? (
+                      <div className="flex items-center justify-center py-8">
+                        <RefreshCw className="w-6 h-6 animate-spin text-teal-600" />
+                      </div>
+                    ) : existingParents.filter(p => {
+                      if (!parentSearchTerm) return true;
+                      const term = parentSearchTerm.toLowerCase();
+                      return (
+                        (p.firstName?.toLowerCase() || '').includes(term) ||
+                        (p.lastName?.toLowerCase() || '').includes(term) ||
+                        (p.phone || '').includes(term) ||
+                        (p.email?.toLowerCase() || '').includes(term)
+                      );
+                    }).length === 0 ? (
+                      <div className="py-8 text-center text-gray-500">
+                        <Users className="w-10 h-10 mx-auto mb-2 opacity-40" />
+                        <p>No parents found</p>
+                        <button
+                          onClick={() => setParentMode('new')}
+                          className="mt-2 text-teal-600 hover:underline text-sm"
+                        >
+                          Create a new parent instead
+                        </button>
+                      </div>
+                    ) : (
+                      existingParents.filter(p => {
+                        if (!parentSearchTerm) return true;
+                        const term = parentSearchTerm.toLowerCase();
+                        return (
+                          (p.firstName?.toLowerCase() || '').includes(term) ||
+                          (p.lastName?.toLowerCase() || '').includes(term) ||
+                          (p.phone || '').includes(term) ||
+                          (p.email?.toLowerCase() || '').includes(term)
+                        );
+                      }).map(parent => (
+                        <div
+                          key={parent.id}
+                          onClick={() => setSelectedExistingParent(parent)}
+                          className={`flex items-center gap-3 p-4 cursor-pointer border-b border-gray-100 last:border-b-0 transition-colors ${
+                            selectedExistingParent?.id === parent.id
+                              ? 'bg-teal-50 border-l-4 border-l-teal-500'
+                              : 'hover:bg-gray-50'
+                          }`}
+                        >
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-teal-500 to-cyan-500 flex items-center justify-center text-white font-bold">
+                            {parent.firstName?.[0]}{parent.lastName?.[0]}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-gray-900">
+                              {parent.firstName} {parent.lastName}
+                            </p>
+                            <div className="flex items-center gap-3 text-sm text-gray-500">
+                              {parent.phone && (
+                                <span className="flex items-center gap-1">
+                                  <Phone className="w-3 h-3" />
+                                  {parent.phone}
+                                </span>
+                              )}
+                              {parent.email && (
+                                <span className="flex items-center gap-1 truncate">
+                                  <Mail className="w-3 h-3" />
+                                  {parent.email}
+                                </span>
+                              )}
+                            </div>
+                            {parent.students?.length > 0 && (
+                              <p className="text-xs text-amber-600 mt-1">
+                                Already linked to: {parent.students.map(s => s.fullName).join(', ')}
+                              </p>
+                            )}
+                          </div>
+                          {selectedExistingParent?.id === parent.id && (
+                            <CheckCircle className="w-5 h-5 text-teal-600" />
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  {selectedExistingParent && (
+                    <div className="bg-teal-50 border border-teal-200 rounded-xl p-4">
+                      <p className="font-medium text-teal-800 mb-2">Selected Parent:</p>
+                      <p className="text-teal-700">
+                        {selectedExistingParent.firstName} {selectedExistingParent.lastName}
+                        {selectedExistingParent.phone && ` • ${selectedExistingParent.phone}`}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Relationship Type */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Relationship <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={parentFormData.relationship}
+                  onChange={(e) => setParentFormData(prev => ({ ...prev, relationship: e.target.value }))}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500"
+                >
+                  <option value="father">Father</option>
+                  <option value="mother">Mother</option>
+                  <option value="guardian">Guardian</option>
+                  <option value="grandparent">Grandparent</option>
+                  <option value="uncle">Uncle</option>
+                  <option value="aunt">Aunt</option>
+                  <option value="sibling">Sibling</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              {/* New Parent Form - Only show when creating new */}
+              {(parentMode === 'new' || editingParent) && (
+                <>
+                  {/* Name */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        First Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={parentFormData.firstName}
+                        onChange={(e) => setParentFormData(prev => ({ ...prev, firstName: e.target.value }))}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500"
+                        placeholder="Enter first name"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Last Name</label>
+                      <input
+                        type="text"
+                        value={parentFormData.lastName}
+                        onChange={(e) => setParentFormData(prev => ({ ...prev, lastName: e.target.value }))}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500"
+                        placeholder="Enter last name"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Contact */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
+                      <input
+                        type="tel"
+                        value={parentFormData.phone}
+                        onChange={(e) => setParentFormData(prev => ({ ...prev, phone: e.target.value }))}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500"
+                        placeholder="Enter phone number"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                      <input
+                        type="email"
+                        value={parentFormData.email}
+                        onChange={(e) => setParentFormData(prev => ({ ...prev, email: e.target.value }))}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500"
+                        placeholder="Enter email address"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Occupation */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Occupation</label>
+                    <input
+                      type="text"
+                      value={parentFormData.occupation}
+                      onChange={(e) => setParentFormData(prev => ({ ...prev, occupation: e.target.value }))}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500"
+                      placeholder="Enter occupation"
+                    />
+                  </div>
+
+                  {/* Address */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Address</label>
+                    <textarea
+                      value={parentFormData.address}
+                      onChange={(e) => setParentFormData(prev => ({ ...prev, address: e.target.value }))}
+                      rows={2}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500"
+                      placeholder="Enter address"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">City</label>
+                      <input
+                        type="text"
+                        value={parentFormData.city}
+                        onChange={(e) => setParentFormData(prev => ({ ...prev, city: e.target.value }))}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500"
+                        placeholder="City"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">State</label>
+                      <input
+                        type="text"
+                        value={parentFormData.state}
+                        onChange={(e) => setParentFormData(prev => ({ ...prev, state: e.target.value }))}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500"
+                        placeholder="State"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Pincode</label>
+                      <input
+                        type="text"
+                        value={parentFormData.pincode}
+                        onChange={(e) => setParentFormData(prev => ({ ...prev, pincode: e.target.value }))}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500"
+                        placeholder="Pincode"
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Options - Always show */}
+              <div className="flex items-center gap-6">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={parentFormData.isPrimary}
+                    onChange={(e) => setParentFormData(prev => ({ ...prev, isPrimary: e.target.checked }))}
+                    className="w-4 h-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                  />
+                  <span className="text-sm text-gray-700">Primary Contact</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={parentFormData.isGuardian}
+                    onChange={(e) => setParentFormData(prev => ({ ...prev, isGuardian: e.target.checked }))}
+                    className="w-4 h-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                  />
+                  <span className="text-sm text-gray-700">Is Legal Guardian</span>
+                </label>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-gray-100 flex gap-3">
+              <button
+                onClick={() => {
+                  setShowParentModal(false);
+                  resetParentForm();
+                }}
+                className="flex-1 px-4 py-3 border border-gray-200 rounded-xl hover:bg-gray-50 font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveParent}
+                disabled={savingParent || (parentMode === 'new' && !parentFormData.firstName) || (parentMode === 'existing' && !selectedExistingParent)}
+                className="flex-1 px-4 py-3 bg-teal-600 text-white rounded-xl hover:bg-teal-700 font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {savingParent ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    {parentMode === 'existing' ? <Link className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+                    {editingParent ? 'Update Parent' : parentMode === 'existing' ? 'Link Parent' : 'Add Parent'}
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

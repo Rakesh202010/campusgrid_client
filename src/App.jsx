@@ -28,36 +28,97 @@ import NumberConfiguration from './pages/NumberConfiguration';
 import FeePaymentSettings from './pages/FeePaymentSettings';
 import FeeReceipt from './pages/FeeReceipt';
 import StaffUsersConfiguration from './pages/StaffUsersConfiguration';
+import UserLoginManagement from './pages/UserLoginManagement';
+
+// Role-based Dashboards
+import StudentDashboard from './pages/StudentDashboard';
+import ParentDashboard from './pages/ParentDashboard';
+import TeacherDashboard from './pages/TeacherDashboard';
+
+// Get dashboard path based on user type
+const getDashboardPath = (userType) => {
+  switch (userType) {
+    case 'student': return '/student';
+    case 'parent': return '/parent';
+    case 'teacher': return '/teacher';
+    case 'staff': return '/dashboard';
+    case 'admin': return '/dashboard';
+    default: return '/dashboard';
+  }
+};
 
 // Protected Route Component
-const ProtectedRoute = ({ children }) => {
+const ProtectedRoute = ({ children, allowedUserTypes = ['admin', 'staff'] }) => {
   const token = localStorage.getItem('schoolAdmin_token');
+  const userInfo = localStorage.getItem('schoolAdmin_info');
   
   if (!token) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Check user type access
+  if (userInfo) {
+    try {
+      const parsed = JSON.parse(userInfo);
+      const userType = parsed.userType || 'admin';
+      
+      // If user type doesn't match allowed types, redirect to their dashboard
+      if (!allowedUserTypes.includes(userType)) {
+        return <Navigate to={getDashboardPath(userType)} replace />;
+      }
+    } catch (e) {
+      // If parsing fails, allow access
+    }
   }
   
   return children;
 };
 
-// Public Route Component (redirect based on mustChangePassword flag)
+// Role-based Protected Route
+const RoleProtectedRoute = ({ children, userType }) => {
+  const token = localStorage.getItem('schoolAdmin_token');
+  const userInfo = localStorage.getItem('schoolAdmin_info');
+  
+  if (!token) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (userInfo) {
+    try {
+      const parsed = JSON.parse(userInfo);
+      const currentUserType = parsed.userType || 'admin';
+      
+      if (currentUserType !== userType) {
+        return <Navigate to={getDashboardPath(currentUserType)} replace />;
+      }
+    } catch (e) {
+      return <Navigate to="/login" replace />;
+    }
+  }
+  
+  return children;
+};
+
+// Public Route Component (redirect based on user type)
 const PublicRoute = ({ children }) => {
   const token = localStorage.getItem('schoolAdmin_token');
+  const userInfo = localStorage.getItem('schoolAdmin_info');
   
-  if (token) {
-    // Check if user needs to change password
-    const userInfo = localStorage.getItem('schoolAdmin_info');
-    if (userInfo) {
-      try {
-        const parsed = JSON.parse(userInfo);
-        if (parsed.mustChangePassword) {
-          return <Navigate to="/change-password" replace />;
-        }
-      } catch (e) {
-        // If parsing fails, just go to dashboard
+  if (token && userInfo) {
+    try {
+      const parsed = JSON.parse(userInfo);
+      const userType = parsed.userType || 'admin';
+      
+      // Check if user needs to change password (admin only)
+      if (userType === 'admin' && parsed.mustChangePassword) {
+        return <Navigate to="/change-password" replace />;
       }
+      
+      // Redirect to appropriate dashboard
+      return <Navigate to={getDashboardPath(userType)} replace />;
+    } catch (e) {
+      return <Navigate to="/dashboard" replace />;
     }
-    return <Navigate to="/dashboard" replace />;
   }
   
   return children;
@@ -83,17 +144,47 @@ function App() {
         <Route 
           path="/fee-receipt" 
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedUserTypes={['admin', 'staff', 'parent']}>
               <FeeReceipt />
             </ProtectedRoute>
           } 
         />
 
-        {/* Protected Routes */}
+        {/* Student Dashboard Routes */}
+        <Route 
+          path="/student/*" 
+          element={
+            <RoleProtectedRoute userType="student">
+              <StudentDashboard />
+            </RoleProtectedRoute>
+          }
+        />
+
+        {/* Parent Dashboard Routes */}
+        <Route 
+          path="/parent/*" 
+          element={
+            <RoleProtectedRoute userType="parent">
+              <ParentDashboard />
+            </RoleProtectedRoute>
+          }
+        />
+
+        {/* Teacher Dashboard Routes */}
+        <Route 
+          path="/teacher/*" 
+          element={
+            <RoleProtectedRoute userType="teacher">
+              <TeacherDashboard />
+            </RoleProtectedRoute>
+          }
+        />
+
+        {/* Admin/Staff Protected Routes */}
         <Route 
           path="/" 
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedUserTypes={['admin', 'staff']}>
               <AcademicSessionProvider>
                 <Layout />
               </AcademicSessionProvider>
@@ -122,14 +213,37 @@ function App() {
           <Route path="settings/departments" element={<DepartmentConfiguration />} />
           <Route path="settings/number-settings" element={<NumberConfiguration />} />
           <Route path="settings/fee-payment" element={<FeePaymentSettings />} />
+          <Route path="settings/user-login" element={<UserLoginManagement />} />
           <Route path="change-password" element={<ChangePassword />} />
         </Route>
 
-        {/* Fallback */}
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        {/* Fallback - Redirect based on user type */}
+        <Route path="*" element={<SmartRedirect />} />
       </Routes>
     </Router>
   );
 }
+
+// Smart redirect component
+const SmartRedirect = () => {
+  const token = localStorage.getItem('schoolAdmin_token');
+  const userInfo = localStorage.getItem('schoolAdmin_info');
+  
+  if (!token) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (userInfo) {
+    try {
+      const parsed = JSON.parse(userInfo);
+      const userType = parsed.userType || 'admin';
+      return <Navigate to={getDashboardPath(userType)} replace />;
+    } catch (e) {
+      return <Navigate to="/dashboard" replace />;
+    }
+  }
+  
+  return <Navigate to="/dashboard" replace />;
+};
 
 export default App;

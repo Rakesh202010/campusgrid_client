@@ -111,6 +111,13 @@ export const students = {
       method: 'DELETE',
     }),
   
+  // Link an existing parent to a student
+  linkParent: (studentId, linkData) =>
+    apiRequest(`/api/students/${studentId}/parents/link`, {
+      method: 'POST',
+      body: JSON.stringify(linkData),
+    }),
+  
   // Promotion
   promote: (data) =>
     apiRequest('/api/students/promote', {
@@ -226,7 +233,7 @@ export const teachers = {
   // Login/Credentials
   createLogin: (id, data) => apiRequest(`/api/teachers/${id}/create-login`, { method: 'POST', body: JSON.stringify(data) }),
   resetPassword: (id, data) => apiRequest(`/api/teachers/${id}/reset-password`, { method: 'POST', body: JSON.stringify(data) }),
-  toggleLoginAccess: (id, data) => apiRequest(`/api/teachers/${id}/toggle-login`, { method: 'POST', body: JSON.stringify(data) }),
+  toggleLoginAccess: (id, enable) => apiRequest(`/api/teachers/${id}/toggle-login`, { method: 'POST', body: JSON.stringify({ enable }) }),
 
   // Audit Logs
   getAuditLogs: (id) => apiRequest(`/api/teachers/${id}/audit-logs`),
@@ -708,7 +715,9 @@ export const people = {
 
   // Parents
   getParents: (params = {}) => {
-    const queryString = new URLSearchParams(params).toString();
+    // Always include students for parent list
+    const paramsWithStudents = { ...params, include_students: 'true' };
+    const queryString = new URLSearchParams(paramsWithStudents).toString();
     return apiRequest(`/api/people/parents${queryString ? `?${queryString}` : ''}`);
   },
 
@@ -727,6 +736,19 @@ export const people = {
   deleteParent: (id) =>
     apiRequest(`/api/people/parents/${id}`, {
       method: 'DELETE',
+    }),
+
+  // User Login Management
+  createStudentLogin: (studentId, password) =>
+    apiRequest('/api/user-auth/student/create-login', {
+      method: 'POST',
+      body: JSON.stringify({ studentId, password }),
+    }),
+
+  createParentLogin: (parentId, password) =>
+    apiRequest('/api/user-auth/parent/create-login', {
+      method: 'POST',
+      body: JSON.stringify({ parentId, password }),
     }),
 };
 
