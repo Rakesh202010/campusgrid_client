@@ -29,6 +29,7 @@ import FeePaymentSettings from './pages/FeePaymentSettings';
 import FeeReceipt from './pages/FeeReceipt';
 import StaffUsersConfiguration from './pages/StaffUsersConfiguration';
 import UserLoginManagement from './pages/UserLoginManagement';
+import StreamsConfiguration from './pages/StreamsConfiguration';
 
 // Role-based Dashboards
 import StudentDashboard from './pages/StudentDashboard';
@@ -206,6 +207,7 @@ function App() {
           <Route path="settings" element={<Settings />} />
           <Route path="settings/academic-sessions" element={<AcademicSessions />} />
           <Route path="settings/class-configuration" element={<ClassConfiguration />} />
+          <Route path="settings/streams" element={<StreamsConfiguration />} />
           <Route path="settings/subjects" element={<SubjectConfiguration />} />
           <Route path="settings/fees" element={<FeeConfiguration />} />
           <Route path="settings/people" element={<StaffUsersConfiguration />} />

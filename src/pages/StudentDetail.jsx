@@ -6,7 +6,7 @@ import {
   BookOpen, IndianRupee, Clock, Award, AlertCircle, CheckCircle,
   Camera, Trash2, Plus, UserCheck, Home, Briefcase, Search, Link, UserPlus
 } from 'lucide-react';
-import { students, classConfig, academicSessions, people } from '../services/api';
+import { students, classConfig, academicSessions, people, streams } from '../services/api';
 import { toast } from '../utils/toast';
 
 const StudentDetail = () => {
@@ -19,6 +19,7 @@ const StudentDetail = () => {
   const [student, setStudent] = useState(null);
   const [academicMapping, setAcademicMapping] = useState(null);
   const [classSections, setClassSections] = useState([]);
+  const [streamsList, setStreamsList] = useState([]);
   const [currentSession, setCurrentSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -70,13 +71,21 @@ const StudentDetail = () => {
 
   const fetchInitialData = async () => {
     try {
-      const sessionRes = await academicSessions.getCurrent();
+      const [sessionRes, streamsRes] = await Promise.all([
+        academicSessions.getCurrent(),
+        streams.getAll({ is_active: 'true' })
+      ]);
+      
       if (sessionRes?.success) {
         setCurrentSession(sessionRes.data);
         const sectionsRes = await classConfig.getClassSections({ academic_session_id: sessionRes.data.id });
         if (sectionsRes?.success) {
           setClassSections(sectionsRes.data || []);
         }
+      }
+      
+      if (streamsRes?.success) {
+        setStreamsList(streamsRes.data || []);
       }
     } catch (e) {
       console.error('Error fetching initial data:', e);
@@ -779,6 +788,44 @@ const StudentDetail = () => {
                       )}
                     </div>
                   </div>
+
+                  {/* Stream Selection */}
+                  {streamsList.length > 0 && (
+                    <div className="mt-6">
+                      <label className="block text-sm font-medium text-gray-500 mb-1">Stream / Course</label>
+                      {editing ? (
+                        <select
+                          value={formData?.streamId || ''}
+                          onChange={(e) => handleInputChange('streamId', e.target.value)}
+                          className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 max-w-md"
+                        >
+                          <option value="">Select Stream (Optional)</option>
+                          {streamsList.map(stream => (
+                            <option key={stream.id} value={stream.id}>
+                              {stream.displayName || stream.name}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          {student.stream ? (
+                            <span 
+                              className="px-3 py-1.5 rounded-lg font-medium text-sm"
+                              style={{ 
+                                backgroundColor: `${student.stream.color || '#6366F1'}20`,
+                                color: student.stream.color || '#6366F6'
+                              }}
+                            >
+                              {student.stream.displayName || student.stream.name}
+                            </span>
+                          ) : (
+                            <p className="text-gray-500">Not assigned</p>
+                          )}
+                        </div>
+                      )}
+                      <p className="text-xs text-gray-400 mt-1">Select academic stream for higher classes (Science, Commerce, Arts, etc.)</p>
+                    </div>
+                  )}
 
                   {/* Academic Mapping */}
                   {academicMapping && (

@@ -539,6 +539,28 @@ export const subjectMasters = {
     }),
 };
 
+// Streams/Courses Master
+export const streams = {
+  getAll: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/streams${queryString ? `?${queryString}` : ''}`);
+  },
+  create: (data) =>
+    apiRequest('/api/streams', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  update: (id, data) =>
+    apiRequest(`/api/streams/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  delete: (id) =>
+    apiRequest(`/api/streams/${id}`, {
+      method: 'DELETE',
+    }),
+};
+
 // Fee & Finance Configuration
 export const fees = {
   // Fee Types

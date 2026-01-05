@@ -21,7 +21,7 @@ const Settings = () => {
     },
     { 
       label: 'Subjects & Curriculum', 
-      description: 'Manage departments, subjects and assign to classes',
+      description: 'Manage departments, subjects, streams and assign to classes',
       icon: Layers,
       path: '/settings/subjects',
       color: 'bg-indigo-100 text-indigo-600'
