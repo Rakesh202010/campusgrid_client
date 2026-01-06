@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { User, Bell, Calendar, Sliders, ChevronRight, BookOpen, Layers, IndianRupee, Users, Clock, Hash, CreditCard, KeyRound } from 'lucide-react';
+import { User, Bell, Calendar, Sliders, ChevronRight, BookOpen, Layers, IndianRupee, Users, Clock, Hash, CreditCard, KeyRound, IdCard, Printer } from 'lucide-react';
 
 const Settings = () => {
   const navigate = useNavigate();
@@ -67,6 +67,20 @@ const Settings = () => {
       icon: KeyRound,
       path: '/settings/user-login',
       color: 'bg-violet-100 text-violet-600'
+    },
+    { 
+      label: 'ID Card Templates', 
+      description: 'Design ID card templates for students, teachers & staff',
+      icon: IdCard,
+      path: '/settings/id-cards',
+      color: 'bg-rose-100 text-rose-600'
+    },
+    { 
+      label: 'Print ID Cards', 
+      description: 'Select users and print their ID cards',
+      icon: Printer,
+      path: '/id-cards/print',
+      color: 'bg-teal-100 text-teal-600'
     },
   ];
 

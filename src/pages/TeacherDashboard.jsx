@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link, Outlet, useLocation } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import {
   BookOpen, Home, User, Calendar, ClipboardList, Users,
   Bell, LogOut, Menu, X, ChevronRight, Clock, Award,
-  CheckCircle2, FileText, BarChart3, MessageSquare, Settings, GraduationCap
+  CheckCircle2, FileText, BarChart3, GraduationCap, RefreshCw
 } from 'lucide-react';
 
 const TEACHER_MENU = [
@@ -26,6 +26,7 @@ const TeacherDashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [school, setSchool] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const token = localStorage.getItem('schoolAdmin_token');
@@ -42,11 +43,15 @@ const TeacherDashboard = () => {
         navigate('/login');
         return;
       }
-      setUser(parsed.user);
-      setSchool(parsed.school);
+      setUser(parsed.user || {});
+      setSchool(parsed.school || {});
     } catch (e) {
+      console.error('Error parsing user info:', e);
       navigate('/login');
+      return;
     }
+    
+    setLoading(false);
   }, [navigate]);
 
   const handleLogout = () => {
@@ -62,7 +67,24 @@ const TeacherDashboard = () => {
     return location.pathname.startsWith(path);
   };
 
-  if (!user) {
+  // Get current page based on URL
+  const getCurrentPage = () => {
+    const path = location.pathname;
+    if (path === '/teacher' || path === '/teacher/') return 'home';
+    if (path.includes('/timetable')) return 'timetable';
+    if (path.includes('/profile')) return 'profile';
+    if (path.includes('/classes')) return 'classes';
+    if (path.includes('/attendance')) return 'attendance';
+    if (path.includes('/subjects')) return 'subjects';
+    if (path.includes('/exams')) return 'exams';
+    if (path.includes('/assignments')) return 'assignments';
+    if (path.includes('/reports')) return 'reports';
+    if (path.includes('/leave')) return 'leave';
+    if (path.includes('/notices')) return 'notices';
+    return 'home';
+  };
+
+  if (loading) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
@@ -70,7 +92,15 @@ const TeacherDashboard = () => {
     );
   }
 
-  const isHomePage = location.pathname === '/teacher';
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="text-white">Loading user data...</div>
+      </div>
+    );
+  }
+
+  const currentPage = getCurrentPage();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
@@ -88,7 +118,7 @@ const TeacherDashboard = () => {
             <span className="font-semibold text-white">Teacher Portal</span>
           </div>
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center text-white font-bold">
-            {user.firstName?.[0]}
+            {user.firstName?.[0] || 'T'}
           </div>
         </div>
       </header>
@@ -133,10 +163,10 @@ const TeacherDashboard = () => {
         <div className="p-4 border-b border-slate-700">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center text-white font-bold text-lg">
-              {user.firstName?.[0]}{user.lastName?.[0]}
+              {user.firstName?.[0] || 'T'}{user.lastName?.[0] || ''}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-white truncate">{user.fullName}</p>
+              <p className="font-semibold text-white truncate">{user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Teacher'}</p>
               <p className="text-sm text-slate-400 truncate">{user.designation || 'Teacher'}</p>
               <p className="text-xs text-slate-500">{user.department || 'Department'}</p>
             </div>
@@ -189,11 +219,11 @@ const TeacherDashboard = () => {
 
       {/* Main Content */}
       <main className="lg:ml-72 pt-16 lg:pt-0 min-h-screen">
-        {isHomePage ? (
-          <TeacherHome user={user} school={school} />
-        ) : (
+        {currentPage === 'home' && <TeacherHome user={user} school={school} />}
+        {currentPage === 'timetable' && <TeacherTimetablePage user={user} />}
+        {currentPage !== 'home' && currentPage !== 'timetable' && (
           <div className="p-4 lg:p-6">
-            <Outlet />
+            <ComingSoon title={TEACHER_MENU.find(m => m.id === currentPage)?.label || 'Page'} />
           </div>
         )}
       </main>
@@ -201,8 +231,88 @@ const TeacherDashboard = () => {
   );
 };
 
+// Coming Soon Component
+const ComingSoon = ({ title }) => (
+  <div className="flex flex-col items-center justify-center h-96 text-center">
+    <div className="w-24 h-24 bg-emerald-500/20 rounded-full flex items-center justify-center mb-6">
+      <Clock className="w-12 h-12 text-emerald-400" />
+    </div>
+    <h2 className="text-2xl font-bold text-white mb-2">{title}</h2>
+    <p className="text-slate-400 max-w-md">
+      This feature is coming soon. We're working hard to bring you the best experience.
+    </p>
+  </div>
+);
+
 // Teacher Home Component
 const TeacherHome = ({ user, school }) => {
+  const [loading, setLoading] = useState(true);
+  const [todaySchedule, setTodaySchedule] = useState([]);
+  const [stats, setStats] = useState({ classes: 0, periods: 0, subjects: 0, today: 0 });
+  
+  const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  
+  const getDayOfWeek = () => {
+    const dayIdx = new Date().getDay();
+    return dayIdx === 0 ? 'Sunday' : DAYS[dayIdx - 1];
+  };
+
+  useEffect(() => {
+    fetchTodaySchedule();
+  }, [user]);
+
+  const fetchTodaySchedule = async () => {
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
+    
+    try {
+      const { academicSessions, timetable } = await import('../services/api');
+      
+      const sessionRes = await academicSessions.getCurrent();
+      if (sessionRes?.success && sessionRes.data) {
+        const res = await timetable.getTeacher(user.id, { 
+          academic_session_id: sessionRes.data.id 
+        });
+        
+        if (res?.success && res.data) {
+          // Convert API data format
+          const allEntries = Object.values(res.data);
+          const day = getDayOfWeek();
+          
+          // Filter today's schedule
+          const todayEntries = allEntries
+            .filter(entry => entry.dayOfWeek === day)
+            .sort((a, b) => a.periodNumber - b.periodNumber)
+            .map(entry => ({
+              ...entry,
+              className: entry.className ? 
+                (entry.sectionName ? `${entry.className} - ${entry.sectionName}` : entry.className) : 
+                'No Class'
+            }));
+          
+          setTodaySchedule(todayEntries);
+          
+          // Calculate stats
+          const uniqueClasses = new Set(allEntries.map(e => e.classSectionId).filter(Boolean));
+          const uniqueSubjects = new Set(allEntries.map(e => e.subjectName).filter(Boolean));
+          
+          setStats({
+            classes: uniqueClasses.size,
+            periods: allEntries.length,
+            subjects: uniqueSubjects.size,
+            today: todayEntries.length
+          });
+        }
+      }
+    } catch (e) {
+      console.error('Error fetching schedule:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const quickLinks = [
     { label: 'Take Attendance', icon: CheckCircle2, path: '/teacher/attendance', color: 'from-emerald-500 to-teal-500' },
     { label: 'View Timetable', icon: Clock, path: '/teacher/timetable', color: 'from-blue-500 to-cyan-500' },
@@ -210,26 +320,28 @@ const TeacherHome = ({ user, school }) => {
     { label: 'Apply Leave', icon: Calendar, path: '/teacher/leave', color: 'from-amber-500 to-orange-500' },
   ];
 
-  const stats = [
-    { label: 'My Classes', value: '4', icon: Users, color: 'text-blue-400' },
-    { label: 'Total Students', value: '145', icon: GraduationCap, color: 'text-emerald-400' },
-    { label: 'Subjects', value: '3', icon: BookOpen, color: 'text-purple-400' },
-    { label: 'Leave Balance', value: '12 Days', icon: Calendar, color: 'text-amber-400' },
+  const statsConfig = [
+    { label: 'My Sections', value: stats.classes, icon: Users, color: 'text-blue-400' },
+    { label: 'Periods/Week', value: stats.periods, icon: Clock, color: 'text-emerald-400' },
+    { label: 'Subjects', value: stats.subjects, icon: BookOpen, color: 'text-purple-400' },
+    { label: 'Today', value: stats.today, icon: Calendar, color: 'text-amber-400' },
   ];
 
-  const todaySchedule = [
-    { time: '08:00 - 08:45', class: 'Class 10-A', subject: 'Mathematics' },
-    { time: '08:45 - 09:30', class: 'Class 9-B', subject: 'Mathematics' },
-    { time: '10:00 - 10:45', class: 'Class 8-A', subject: 'Mathematics' },
-    { time: '11:30 - 12:15', class: 'Class 10-B', subject: 'Mathematics' },
-    { time: '01:00 - 01:45', class: 'Class 9-A', subject: 'Mathematics' },
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good Morning';
+    if (hour < 17) return 'Good Afternoon';
+    return 'Good Evening';
+  };
+
+  const SUBJECT_COLORS = [
+    { bg: 'bg-blue-500/20', text: 'text-blue-300' },
+    { bg: 'bg-purple-500/20', text: 'text-purple-300' },
+    { bg: 'bg-emerald-500/20', text: 'text-emerald-300' },
+    { bg: 'bg-amber-500/20', text: 'text-amber-300' },
   ];
 
-  const pendingTasks = [
-    { task: 'Submit Class 10-A attendance', due: 'Today', priority: 'high' },
-    { task: 'Grade Unit Test papers', due: 'Tomorrow', priority: 'medium' },
-    { task: 'Prepare Class 9 worksheet', due: 'In 3 days', priority: 'low' },
-  ];
+  const getSubjectColor = (idx) => SUBJECT_COLORS[idx % SUBJECT_COLORS.length];
 
   return (
     <div className="p-4 lg:p-6">
@@ -238,10 +350,10 @@ const TeacherHome = ({ user, school }) => {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl lg:text-3xl font-bold mb-2">
-              Good Morning, {user.firstName}! 👋
+              {getGreeting()}, {user?.firstName || 'Teacher'}! 👋
             </h1>
             <p className="text-emerald-100">
-              {user.designation || 'Teacher'} | {user.department || 'Department'}
+              {user?.designation || 'Teacher'} | {user?.department || 'Department'}
             </p>
             <p className="text-sm text-emerald-200 mt-1">
               {school?.name || 'Your School'}
@@ -257,7 +369,7 @@ const TeacherHome = ({ user, school }) => {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {stats.map((stat, idx) => {
+        {statsConfig.map((stat, idx) => {
           const Icon = stat.icon;
           return (
             <div key={idx} className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-4 border border-slate-700">
@@ -293,59 +405,76 @@ const TeacherHome = ({ user, school }) => {
         })}
       </div>
 
-      {/* Today's Schedule & Tasks */}
+      {/* Today's Schedule & Notices */}
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Today's Schedule */}
         <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-5 border border-slate-700">
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
             <Clock className="w-5 h-5 text-emerald-400" />
-            Today's Schedule
+            Today's Schedule ({getDayOfWeek()})
           </h3>
-          <div className="space-y-3">
-            {todaySchedule.map((item, idx) => (
-              <div key={idx} className="flex items-center gap-4 p-3 bg-slate-700/30 rounded-lg">
-                <div className="text-sm text-slate-400 w-28">{item.time}</div>
-                <div className="flex-1">
-                  <p className="font-medium text-white">{item.class}</p>
-                  <p className="text-sm text-slate-400">{item.subject}</p>
-                </div>
-                <Link
-                  to={`/teacher/attendance?class=${item.class}`}
-                  className="p-2 bg-emerald-500/20 rounded-lg text-emerald-400 hover:bg-emerald-500/30"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                </Link>
-              </div>
-            ))}
-          </div>
+          
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <RefreshCw className="w-6 h-6 animate-spin text-emerald-500" />
+            </div>
+          ) : getDayOfWeek() === 'Sunday' ? (
+            <div className="text-center py-8 text-slate-400">
+              <Calendar className="w-12 h-12 mx-auto mb-3 opacity-50" />
+              <p className="font-medium text-white">It's Sunday!</p>
+              <p className="text-sm mt-1">Enjoy your day off</p>
+            </div>
+          ) : todaySchedule.length === 0 ? (
+            <div className="text-center py-8 text-slate-400">
+              <Calendar className="w-12 h-12 mx-auto mb-3 opacity-50" />
+              <p className="font-medium">No classes today</p>
+              <Link 
+                to="/teacher/timetable" 
+                className="mt-4 inline-flex items-center gap-2 text-emerald-400 hover:text-emerald-300 text-sm font-medium"
+              >
+                View Full Timetable
+                <ChevronRight className="w-4 h-4" />
+              </Link>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {todaySchedule.slice(0, 5).map((entry, idx) => {
+                const colors = getSubjectColor(idx);
+                return (
+                  <div key={idx} className={`p-3 rounded-lg ${colors.bg} flex items-center gap-3`}>
+                    <div className="w-10 h-10 rounded-lg bg-slate-700/50 flex items-center justify-center text-white font-bold text-sm">
+                      P{entry.periodNumber}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={`font-semibold ${colors.text} truncate`}>{entry.subjectName || 'No Subject'}</p>
+                      <p className="text-xs text-slate-400">{entry.className}</p>
+                    </div>
+                    <div className="text-xs text-slate-400 text-right">
+                      {entry.startTime?.slice(0, 5) || '--:--'}
+                    </div>
+                  </div>
+                );
+              })}
+              {todaySchedule.length > 5 && (
+                <p className="text-center text-slate-400 text-sm">+{todaySchedule.length - 5} more classes</p>
+              )}
+              <Link 
+                to="/teacher/timetable" 
+                className="mt-4 flex items-center justify-center gap-2 text-emerald-400 hover:text-emerald-300 text-sm font-medium py-2"
+              >
+                View Full Timetable
+                <ChevronRight className="w-4 h-4" />
+              </Link>
+            </div>
+          )}
         </div>
 
-        {/* Pending Tasks */}
+        {/* Notices */}
         <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-5 border border-slate-700">
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <FileText className="w-5 h-5 text-amber-400" />
-            Pending Tasks
-          </h3>
-          <div className="space-y-3">
-            {pendingTasks.map((item, idx) => (
-              <div key={idx} className="flex items-center gap-4 p-3 bg-slate-700/30 rounded-lg">
-                <div className={`w-2 h-2 rounded-full ${
-                  item.priority === 'high' ? 'bg-red-500' :
-                  item.priority === 'medium' ? 'bg-amber-500' : 'bg-emerald-500'
-                }`} />
-                <div className="flex-1">
-                  <p className="font-medium text-white">{item.task}</p>
-                  <p className="text-sm text-slate-400">Due: {item.due}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Notices */}
-          <h4 className="text-md font-semibold text-white mt-6 mb-3 flex items-center gap-2">
-            <Bell className="w-4 h-4 text-amber-400" />
+            <Bell className="w-5 h-5 text-amber-400" />
             Recent Notices
-          </h4>
+          </h3>
           <div className="space-y-2">
             {[
               { title: 'Staff Meeting - Tomorrow 3 PM', date: '2 hours ago' },
@@ -363,5 +492,613 @@ const TeacherHome = ({ user, school }) => {
   );
 };
 
-export default TeacherDashboard;
+// Timetable Page with Date Filters
+const TeacherTimetablePage = ({ user }) => {
+  const [loading, setLoading] = useState(true);
+  const [timetableData, setTimetableData] = useState({});
+  const [currentSession, setCurrentSession] = useState(null);
+  const [viewMode, setViewMode] = useState('daily'); // daily, weekly, monthly
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedWeekStart, setSelectedWeekStart] = useState(getWeekStart(new Date()));
+  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
+  
+  const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  
+  const SUBJECT_COLORS = [
+    { bg: 'bg-blue-500/20', border: 'border-blue-500/50', text: 'text-blue-300' },
+    { bg: 'bg-purple-500/20', border: 'border-purple-500/50', text: 'text-purple-300' },
+    { bg: 'bg-emerald-500/20', border: 'border-emerald-500/50', text: 'text-emerald-300' },
+    { bg: 'bg-amber-500/20', border: 'border-amber-500/50', text: 'text-amber-300' },
+    { bg: 'bg-rose-500/20', border: 'border-rose-500/50', text: 'text-rose-300' },
+    { bg: 'bg-cyan-500/20', border: 'border-cyan-500/50', text: 'text-cyan-300' },
+  ];
 
+  const [subjectColorMap, setSubjectColorMap] = useState({});
+
+  function getWeekStart(date) {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    return new Date(d.setDate(diff)).toISOString().split('T')[0];
+  }
+
+  function getWeekDates(startDate) {
+    const dates = [];
+    const start = new Date(startDate);
+    for (let i = 0; i < 6; i++) {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      dates.push({
+        date: d.toISOString().split('T')[0],
+        day: DAYS[i],
+        dayNum: d.getDate(),
+        month: d.toLocaleDateString('en-IN', { month: 'short' })
+      });
+    }
+    return dates;
+  }
+
+  function getMonthDates(yearMonth) {
+    const [year, month] = yearMonth.split('-').map(Number);
+    const dates = [];
+    const daysInMonth = new Date(year, month, 0).getDate();
+    
+    for (let day = 1; day <= daysInMonth; day++) {
+      const d = new Date(year, month - 1, day);
+      const dayOfWeek = d.getDay();
+      if (dayOfWeek !== 0) { // Skip Sundays
+        dates.push({
+          date: d.toISOString().split('T')[0],
+          day: DAYS[dayOfWeek === 0 ? 6 : dayOfWeek - 1],
+          dayNum: day,
+          weekday: d.toLocaleDateString('en-IN', { weekday: 'short' })
+        });
+      }
+    }
+    return dates;
+  }
+
+  useEffect(() => {
+    fetchTimetable();
+  }, [user]);
+
+  const fetchTimetable = async () => {
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      // Import API dynamically to avoid issues
+      const { academicSessions, timetable } = await import('../services/api');
+      
+      const sessionRes = await academicSessions.getCurrent();
+      if (sessionRes?.success) {
+        setCurrentSession(sessionRes.data);
+        
+        const res = await timetable.getTeacher(user.id, { 
+          academic_session_id: sessionRes.data.id 
+        });
+        
+        if (res?.success && res.data) {
+          // API returns data as {"Monday-1": {...}, "Monday-2": {...}}
+          // Convert to {"Monday": [{...}, {...}], "Tuesday": [...]}
+          const convertedData = {};
+          
+          Object.entries(res.data).forEach(([key, entry]) => {
+            // key format is "Monday-1", "Tuesday-2", etc.
+            const dayOfWeek = entry.dayOfWeek || key.split('-')[0];
+            
+            if (!convertedData[dayOfWeek]) {
+              convertedData[dayOfWeek] = [];
+            }
+            
+            convertedData[dayOfWeek].push({
+              ...entry,
+              className: entry.className ? 
+                (entry.sectionName ? `${entry.className} - ${entry.sectionName}` : entry.className) : 
+                'No Class'
+            });
+          });
+          
+          // Sort each day's entries by period number
+          Object.keys(convertedData).forEach(day => {
+            convertedData[day].sort((a, b) => a.periodNumber - b.periodNumber);
+          });
+          
+          setTimetableData(convertedData);
+          
+          // Build color map
+          const subjects = new Set();
+          Object.values(convertedData).forEach(dayEntries => {
+            (dayEntries || []).forEach(entry => {
+              if (entry.subjectName) subjects.add(entry.subjectName);
+            });
+          });
+          
+          const colorMap = {};
+          Array.from(subjects).forEach((subj, idx) => {
+            colorMap[subj] = SUBJECT_COLORS[idx % SUBJECT_COLORS.length];
+          });
+          setSubjectColorMap(colorMap);
+        }
+      }
+    } catch (e) {
+      console.error('Error fetching timetable:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getDayOfWeek = (dateStr) => {
+    const date = new Date(dateStr);
+    const dayIdx = date.getDay();
+    return dayIdx === 0 ? 'Sunday' : DAYS[dayIdx - 1];
+  };
+
+  const formatDate = (dateStr) => {
+    return new Date(dateStr).toLocaleDateString('en-IN', { 
+      weekday: 'long', 
+      day: 'numeric', 
+      month: 'long', 
+      year: 'numeric' 
+    });
+  };
+
+  const getScheduleForDay = (day) => {
+    return (timetableData[day] || []).sort((a, b) => a.periodNumber - b.periodNumber);
+  };
+
+  const getSubjectColor = (subjectName) => {
+    return subjectColorMap[subjectName] || SUBJECT_COLORS[0];
+  };
+
+  const navigateDate = (days) => {
+    const newDate = new Date(selectedDate);
+    newDate.setDate(newDate.getDate() + days);
+    setSelectedDate(newDate.toISOString().split('T')[0]);
+  };
+
+  const navigateWeek = (weeks) => {
+    const newDate = new Date(selectedWeekStart);
+    newDate.setDate(newDate.getDate() + (weeks * 7));
+    setSelectedWeekStart(newDate.toISOString().split('T')[0]);
+  };
+
+  const navigateMonth = (months) => {
+    const [year, month] = selectedMonth.split('-').map(Number);
+    const newDate = new Date(year, month - 1 + months, 1);
+    setSelectedMonth(newDate.toISOString().slice(0, 7));
+  };
+
+  // Stats
+  const getTotalPeriods = () => {
+    let total = 0;
+    Object.values(timetableData).forEach(day => {
+      total += (day || []).length;
+    });
+    return total;
+  };
+
+  const getUniqueClasses = () => {
+    const classes = new Set();
+    Object.values(timetableData).forEach(day => {
+      (day || []).forEach(entry => {
+        if (entry.className) classes.add(entry.className);
+      });
+    });
+    return classes.size;
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <RefreshCw className="w-8 h-8 animate-spin text-emerald-500" />
+      </div>
+    );
+  }
+
+  const weekDates = getWeekDates(selectedWeekStart);
+  const monthDates = getMonthDates(selectedMonth);
+
+  return (
+    <div className="p-4 lg:p-6 space-y-6">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-emerald-600 to-teal-600 rounded-2xl p-6 text-white">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-bold flex items-center gap-3">
+              <Clock className="w-8 h-8" />
+              My Timetable
+            </h2>
+            <p className="text-emerald-100 mt-1">
+              {currentSession?.name || 'Academic Session'} • {user?.fullName || user?.firstName || 'Teacher'}
+            </p>
+          </div>
+          
+          {/* Stats */}
+          <div className="flex items-center gap-4 text-sm">
+            <div className="bg-white/20 rounded-lg px-3 py-2">
+              <span className="font-bold text-lg">{getTotalPeriods()}</span>
+              <span className="text-emerald-100 ml-1">classes/week</span>
+            </div>
+            <div className="bg-white/20 rounded-lg px-3 py-2">
+              <span className="font-bold text-lg">{getUniqueClasses()}</span>
+              <span className="text-emerald-100 ml-1">sections</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* View Mode Tabs */}
+      <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-2 border border-slate-700">
+        <div className="flex gap-2">
+          {[
+            { id: 'daily', label: 'Daily View', icon: Calendar },
+            { id: 'weekly', label: 'Weekly View', icon: Clock },
+            { id: 'monthly', label: 'Monthly View', icon: GraduationCap },
+          ].map(mode => {
+            const Icon = mode.icon;
+            return (
+              <button
+                key={mode.id}
+                onClick={() => setViewMode(mode.id)}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-all ${
+                  viewMode === mode.id
+                    ? 'bg-emerald-500 text-white'
+                    : 'text-slate-400 hover:bg-slate-700 hover:text-white'
+                }`}
+              >
+                <Icon className="w-5 h-5" />
+                {mode.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Daily View */}
+      {viewMode === 'daily' && (
+        <>
+          {/* Date Navigation */}
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-4 border border-slate-700">
+            <div className="flex items-center justify-between">
+              <button 
+                onClick={() => navigateDate(-1)} 
+                className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-all"
+              >
+                <ChevronRight className="w-5 h-5 text-slate-300 rotate-180" />
+              </button>
+              
+              <div className="text-center flex-1">
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+                <p className="text-slate-400 text-sm mt-1">{formatDate(selectedDate)}</p>
+              </div>
+              
+              <button 
+                onClick={() => navigateDate(1)} 
+                className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-all"
+              >
+                <ChevronRight className="w-5 h-5 text-slate-300" />
+              </button>
+            </div>
+            
+            <div className="flex justify-center gap-2 mt-3">
+              <button 
+                onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
+                className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-medium transition-all"
+              >
+                Today
+              </button>
+            </div>
+          </div>
+
+          {/* Daily Schedule */}
+          <DayScheduleCard 
+            day={getDayOfWeek(selectedDate)} 
+            date={selectedDate}
+            schedule={getScheduleForDay(getDayOfWeek(selectedDate))}
+            getSubjectColor={getSubjectColor}
+          />
+        </>
+      )}
+
+      {/* Weekly View */}
+      {viewMode === 'weekly' && (
+        <>
+          {/* Week Navigation */}
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-4 border border-slate-700">
+            <div className="flex items-center justify-between">
+              <button 
+                onClick={() => navigateWeek(-1)} 
+                className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-all"
+              >
+                <ChevronRight className="w-5 h-5 text-slate-300 rotate-180" />
+              </button>
+              
+              <div className="text-center">
+                <p className="text-white font-semibold">
+                  {new Date(selectedWeekStart).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} - {
+                    new Date(new Date(selectedWeekStart).setDate(new Date(selectedWeekStart).getDate() + 5)).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                  }
+                </p>
+              </div>
+              
+              <button 
+                onClick={() => navigateWeek(1)} 
+                className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-all"
+              >
+                <ChevronRight className="w-5 h-5 text-slate-300" />
+              </button>
+            </div>
+            
+            <div className="flex justify-center mt-3">
+              <button 
+                onClick={() => setSelectedWeekStart(getWeekStart(new Date()))}
+                className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-medium transition-all"
+              >
+                Current Week
+              </button>
+            </div>
+          </div>
+
+          {/* Weekly Grid */}
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700 overflow-hidden">
+            <div className="grid grid-cols-6 min-w-[800px]">
+              {/* Day Headers */}
+              {weekDates.map(({ day, dayNum, month, date }) => {
+                const isToday = date === new Date().toISOString().split('T')[0];
+                return (
+                  <div 
+                    key={day} 
+                    className={`p-3 text-center border-b border-r border-slate-700 last:border-r-0 ${
+                      isToday ? 'bg-emerald-500/20' : 'bg-slate-700/50'
+                    }`}
+                  >
+                    <p className={`font-semibold ${isToday ? 'text-emerald-300' : 'text-slate-300'}`}>{day}</p>
+                    <p className={`text-sm ${isToday ? 'text-emerald-400' : 'text-slate-400'}`}>{dayNum} {month}</p>
+                  </div>
+                );
+              })}
+
+              {/* Day Contents */}
+              {weekDates.map(({ day, date }) => {
+                const schedule = getScheduleForDay(day);
+                const isToday = date === new Date().toISOString().split('T')[0];
+                return (
+                  <div 
+                    key={day} 
+                    className={`border-r border-slate-700 last:border-r-0 min-h-[300px] ${
+                      isToday ? 'bg-emerald-500/5' : ''
+                    }`}
+                  >
+                    {schedule.length > 0 ? (
+                      schedule.map((entry, idx) => {
+                        const colors = getSubjectColor(entry.subjectName);
+                        return (
+                          <div 
+                            key={idx}
+                            className={`p-2 m-1 rounded-lg ${colors.bg} ${colors.border} border`}
+                          >
+                            <div className="flex items-center justify-between mb-1">
+                              <span className={`text-xs font-bold ${colors.text}`}>P{entry.periodNumber}</span>
+                              <span className="text-xs text-slate-400">{entry.startTime?.slice(0,5)}</span>
+                            </div>
+                            <p className={`font-semibold text-xs ${colors.text}`}>{entry.subjectName}</p>
+                            <p className="text-xs text-slate-300">{entry.className}</p>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="p-4 text-center text-slate-500 text-xs">
+                        No classes
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Monthly View */}
+      {viewMode === 'monthly' && (
+        <>
+          {/* Month Navigation */}
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-4 border border-slate-700">
+            <div className="flex items-center justify-between">
+              <button 
+                onClick={() => navigateMonth(-1)} 
+                className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-all"
+              >
+                <ChevronRight className="w-5 h-5 text-slate-300 rotate-180" />
+              </button>
+              
+              <div className="text-center">
+                <input
+                  type="month"
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+              
+              <button 
+                onClick={() => navigateMonth(1)} 
+                className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-all"
+              >
+                <ChevronRight className="w-5 h-5 text-slate-300" />
+              </button>
+            </div>
+            
+            <div className="flex justify-center mt-3">
+              <button 
+                onClick={() => setSelectedMonth(new Date().toISOString().slice(0, 7))}
+                className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-medium transition-all"
+              >
+                Current Month
+              </button>
+            </div>
+          </div>
+
+          {/* Monthly Calendar */}
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700 overflow-hidden">
+            <div className="p-4 border-b border-slate-700">
+              <h3 className="font-semibold text-white">
+                {new Date(selectedMonth + '-01').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
+              </h3>
+            </div>
+            
+            <div className="divide-y divide-slate-700 max-h-[600px] overflow-y-auto">
+              {monthDates.map(({ date, day, dayNum, weekday }) => {
+                const schedule = getScheduleForDay(day);
+                const isToday = date === new Date().toISOString().split('T')[0];
+                const totalClasses = schedule.length;
+                
+                return (
+                  <div 
+                    key={date} 
+                    className={`p-3 flex items-center gap-4 ${isToday ? 'bg-emerald-500/10' : 'hover:bg-slate-700/30'}`}
+                  >
+                    <div className={`w-14 text-center ${isToday ? 'text-emerald-400' : 'text-slate-400'}`}>
+                      <p className="text-lg font-bold">{dayNum}</p>
+                      <p className="text-xs">{weekday}</p>
+                    </div>
+                    
+                    <div className="flex-1 flex flex-wrap gap-2">
+                      {schedule.length > 0 ? (
+                        schedule.slice(0, 5).map((entry, idx) => {
+                          const colors = getSubjectColor(entry.subjectName);
+                          return (
+                            <div 
+                              key={idx}
+                              className={`px-2 py-1 rounded ${colors.bg} ${colors.border} border`}
+                            >
+                              <span className={`text-xs font-medium ${colors.text}`}>
+                                P{entry.periodNumber}: {entry.subjectName}
+                              </span>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <span className="text-slate-500 text-sm">No classes</span>
+                      )}
+                      {schedule.length > 5 && (
+                        <span className="text-slate-400 text-xs self-center">+{schedule.length - 5} more</span>
+                      )}
+                    </div>
+                    
+                    <div className={`text-right ${isToday ? 'text-emerald-400' : 'text-slate-400'}`}>
+                      <span className="font-bold">{totalClasses}</span>
+                      <span className="text-xs ml-1">classes</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Subject Legend */}
+      {Object.keys(subjectColorMap).length > 0 && (
+        <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-4 border border-slate-700">
+          <h4 className="font-semibold text-white mb-3">Your Subjects</h4>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(subjectColorMap).map(([subject, colors]) => (
+              <div 
+                key={subject}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${colors.bg} ${colors.border} border`}
+              >
+                <span className={`text-sm font-medium ${colors.text}`}>{subject}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Day Schedule Card Component
+const DayScheduleCard = ({ day, date, schedule, getSubjectColor }) => {
+  if (day === 'Sunday') {
+    return (
+      <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700 text-center">
+        <Calendar className="w-16 h-16 mx-auto mb-4 text-slate-500 opacity-50" />
+        <p className="text-lg font-medium text-white">Sunday</p>
+        <p className="text-slate-400">It's a holiday! Enjoy your day off.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700 overflow-hidden">
+      <div className="bg-slate-700/50 px-6 py-4 border-b border-slate-600">
+        <h3 className="font-semibold text-white flex items-center gap-2">
+          <Calendar className="w-5 h-5 text-emerald-400" />
+          {day}'s Schedule
+          <span className="text-sm text-slate-400 font-normal ml-2">({schedule.length} classes)</span>
+        </h3>
+      </div>
+
+      {schedule.length === 0 ? (
+        <div className="p-12 text-center text-slate-400">
+          <Clock className="w-16 h-16 mx-auto mb-4 opacity-50" />
+          <p className="text-lg font-medium">No classes scheduled</p>
+          <p className="text-sm mt-1">You have a free day on {day}</p>
+        </div>
+      ) : (
+        <div className="divide-y divide-slate-700">
+          {schedule.map((entry, idx) => {
+            const colors = getSubjectColor(entry.subjectName);
+            return (
+              <div 
+                key={idx} 
+                className="p-4 hover:bg-slate-700/30 transition-all flex items-center gap-4"
+              >
+                {/* Period Number */}
+                <div className={`w-12 h-12 rounded-xl ${colors.bg} ${colors.border} border flex items-center justify-center font-bold ${colors.text}`}>
+                  P{entry.periodNumber}
+                </div>
+                
+                {/* Time */}
+                <div className="text-slate-400 w-32">
+                  <div className="flex items-center gap-1">
+                    <Clock className="w-4 h-4" />
+                    <span className="font-medium text-white">
+                      {entry.startTime?.slice(0,5) || '--:--'}
+                    </span>
+                  </div>
+                  <span className="text-sm">to {entry.endTime?.slice(0,5) || '--:--'}</span>
+                </div>
+                
+                {/* Subject & Class */}
+                <div className="flex-1">
+                  <p className={`font-semibold ${colors.text}`}>{entry.subjectName || 'No Subject'}</p>
+                  <p className="text-slate-300">{entry.className || 'No Class'}</p>
+                </div>
+                
+                {/* Room */}
+                {entry.room && (
+                  <div className="text-slate-400 text-sm">
+                    Room: {entry.room}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default TeacherDashboard;

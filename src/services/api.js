@@ -561,6 +561,62 @@ export const streams = {
     }),
 };
 
+// ID Card Configuration & Generation
+export const idCards = {
+  // Templates
+  getTemplates: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/id-cards/templates${queryString ? `?${queryString}` : ''}`);
+  },
+  getTemplateById: (id) => apiRequest(`/api/id-cards/templates/${id}`),
+  createTemplate: (data) =>
+    apiRequest('/api/id-cards/templates', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateTemplate: (id, data) =>
+    apiRequest(`/api/id-cards/templates/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  deleteTemplate: (id) =>
+    apiRequest(`/api/id-cards/templates/${id}`, {
+      method: 'DELETE',
+    }),
+  duplicateTemplate: (id, data) =>
+    apiRequest(`/api/id-cards/templates/${id}/duplicate`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  // Available fields for user types
+  getAvailableFields: (userType) =>
+    apiRequest(`/api/id-cards/fields?user_type=${userType}`),
+
+  // User data for ID card generation
+  getUserDataForCard: (userType, userIds) =>
+    apiRequest('/api/id-cards/user-data', {
+      method: 'POST',
+      body: JSON.stringify({ userType, userIds }),
+    }),
+
+  // Print history
+  getPrintHistory: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/id-cards/prints${queryString ? `?${queryString}` : ''}`);
+  },
+  recordPrint: (data) =>
+    apiRequest('/api/id-cards/prints', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  voidPrint: (id, reason) =>
+    apiRequest(`/api/id-cards/prints/${id}/void`, {
+      method: 'PUT',
+      body: JSON.stringify({ reason }),
+    }),
+};
+
 // Fee & Finance Configuration
 export const fees = {
   // Fee Types
@@ -1007,6 +1063,34 @@ export const timetable = {
     }),
 };
 
+// Teacher Leave Management
+export const teacherLeaves = {
+  getAll: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/teacher-leaves${queryString ? `?${queryString}` : ''}`);
+  },
+  
+  getOnLeave: (date) => 
+    apiRequest(`/api/teacher-leaves/on-leave?date=${date}`),
+  
+  create: (data) =>
+    apiRequest('/api/teacher-leaves', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  
+  update: (id, data) =>
+    apiRequest(`/api/teacher-leaves/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  
+  delete: (id) =>
+    apiRequest(`/api/teacher-leaves/${id}`, {
+      method: 'DELETE',
+    }),
+};
+
 // Number Generation Settings
 export const numberSettings = {
   getAll: () => apiRequest('/api/number-settings'),
@@ -1209,5 +1293,6 @@ export default {
   timetable,
   numberSettings,
   dashboard,
+  idCards,
 };
 

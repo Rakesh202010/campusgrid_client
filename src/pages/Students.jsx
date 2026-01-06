@@ -6,7 +6,7 @@ import {
   ChevronLeft, ChevronRight, X, Save, User, Building, Home,
   FileText, Heart, Bus, AlertCircle, CheckCircle, MoreVertical, FileSpreadsheet
 } from 'lucide-react';
-import { students, classConfig, numberSettings } from '../services/api';
+import { students, classConfig, numberSettings, streams, people } from '../services/api';
 import { useAcademicSession } from '../contexts/AcademicSessionContext';
 import { toast } from '../utils/toast';
 
@@ -61,6 +61,7 @@ const Students = () => {
       admissionDate: new Date().toISOString().split('T')[0],
       classSectionId: '',
       rollNumber: '',
+      streamId: '', // Academic stream (Science, Commerce, Arts, etc.)
       firstName: '',
       middleName: '',
       lastName: '',
@@ -87,6 +88,15 @@ const Students = () => {
       customFeeStructureId: '',
     };
   }
+  
+  // Streams state
+  const [streamsList, setStreamsList] = useState([]);
+  
+  // Existing parents for linking
+  const [existingParents, setExistingParents] = useState([]);
+  const [parentSearch, setParentSearch] = useState('');
+  const [showParentSearch, setShowParentSearch] = useState(false);
+  const [searchingParents, setSearchingParents] = useState(false);
 
   useEffect(() => {
     if (sessionId) {
@@ -123,11 +133,73 @@ const Students = () => {
       } catch (e) {
         console.error('Error fetching grades:', e);
       }
+      
+      // Fetch streams
+      try {
+        const streamsRes = await streams.getAll();
+        if (streamsRes?.success) {
+          setStreamsList(streamsRes.data || []);
+        }
+      } catch (e) {
+        console.error('Error fetching streams:', e);
+      }
     } catch (e) {
       console.error('Error fetching initial data:', e);
     } finally {
       setLoading(false);
     }
+  };
+  
+  // Search existing parents
+  const searchExistingParents = async (searchTerm) => {
+    if (!searchTerm || searchTerm.length < 2) {
+      setExistingParents([]);
+      return;
+    }
+    
+    setSearchingParents(true);
+    try {
+      const response = await people.getParents({ search: searchTerm, include_students: true });
+      if (response?.success) {
+        setExistingParents(response.data || []);
+      }
+    } catch (error) {
+      console.error('Error searching parents:', error);
+    } finally {
+      setSearchingParents(false);
+    }
+  };
+  
+  // Link existing parent to student
+  const linkExistingParent = (parent) => {
+    // Check if already linked
+    const alreadyLinked = formData.parents.some(p => p.id === parent.id);
+    if (alreadyLinked) {
+      toast.error('This parent is already linked to this student');
+      return;
+    }
+    
+    const newParent = {
+      id: parent.id,
+      isExisting: true, // Flag to indicate this is an existing parent
+      firstName: parent.first_name || parent.firstName || '',
+      lastName: parent.last_name || parent.lastName || '',
+      relationship: parent.relationship || 'father',
+      phone: parent.phone || '',
+      email: parent.email || '',
+      occupation: parent.occupation || '',
+      isPrimaryContact: formData.parents.length === 0,
+    };
+    
+    setFormData(prev => ({
+      ...prev,
+      parents: [...prev.parents, newParent]
+    }));
+    
+    setShowParentSearch(false);
+    setParentSearch('');
+    setExistingParents([]);
+    toast.success(`${newParent.firstName} ${newParent.lastName} linked successfully`);
   };
 
   const fetchStudents = async () => {
@@ -1065,6 +1137,30 @@ const Students = () => {
                         className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 disabled:bg-gray-100"
                       />
                     </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Stream / Course
+                        <span className="text-xs text-gray-400 ml-1">(for higher classes)</span>
+                      </label>
+                      <select
+                        value={formData.streamId || ''}
+                        onChange={(e) => handleInputChange('streamId', e.target.value)}
+                        disabled={modalMode === 'view'}
+                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 disabled:bg-gray-100"
+                      >
+                        <option value="">Select Stream (Optional)</option>
+                        {streamsList.filter(s => s.is_active).map(stream => (
+                          <option key={stream.id} value={stream.id}>
+                            {stream.display_name || stream.name}
+                          </option>
+                        ))}
+                      </select>
+                      {formData.streamId && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          {streamsList.find(s => s.id === formData.streamId)?.description || ''}
+                        </p>
+                      )}
+                    </div>
                   </div>
 
                   {/* Academic Mapping - Only in View Mode */}
@@ -1243,10 +1339,90 @@ const Students = () => {
               {/* Parents Tab */}
               {activeTab === 'parents' && (
                 <div className="space-y-4">
-                  {formData.parents?.length === 0 && modalMode !== 'view' && (
+                  {/* Link Existing Parent Section */}
+                  {modalMode !== 'view' && (
+                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
+                      <div className="flex items-center justify-between mb-3">
+                        <h5 className="font-semibold text-blue-800 flex items-center gap-2">
+                          <Search className="w-4 h-4" />
+                          Link Existing Parent
+                        </h5>
+                        <button
+                          onClick={() => setShowParentSearch(!showParentSearch)}
+                          className="text-sm text-blue-600 hover:text-blue-800"
+                        >
+                          {showParentSearch ? 'Hide' : 'Show'} Search
+                        </button>
+                      </div>
+                      
+                      {showParentSearch && (
+                        <div className="space-y-3">
+                          <p className="text-xs text-blue-600">
+                            Search by parent name, phone, or email to link an existing parent
+                          </p>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={parentSearch}
+                              onChange={(e) => {
+                                setParentSearch(e.target.value);
+                                searchExistingParents(e.target.value);
+                              }}
+                              placeholder="Search by name, phone, or email..."
+                              className="w-full px-4 py-2.5 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 pr-10"
+                            />
+                            {searchingParents && (
+                              <RefreshCw className="absolute right-3 top-3 w-4 h-4 text-blue-400 animate-spin" />
+                            )}
+                          </div>
+                          
+                          {/* Search Results */}
+                          {existingParents.length > 0 && (
+                            <div className="max-h-48 overflow-y-auto space-y-2">
+                              {existingParents.map(parent => (
+                                <div
+                                  key={parent.id}
+                                  className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200 hover:border-blue-300 transition-colors"
+                                >
+                                  <div>
+                                    <p className="font-medium text-gray-800">
+                                      {parent.first_name || parent.firstName} {parent.last_name || parent.lastName}
+                                    </p>
+                                    <p className="text-xs text-gray-500">
+                                      {parent.phone} • {parent.email || 'No email'}
+                                    </p>
+                                    {parent.linkedStudents && parent.linkedStudents.length > 0 && (
+                                      <p className="text-xs text-blue-600 mt-1">
+                                        Already linked to: {parent.linkedStudents.map(s => s.name).join(', ')}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <button
+                                    onClick={() => linkExistingParent(parent)}
+                                    className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
+                                  >
+                                    Link
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          
+                          {parentSearch.length >= 2 && !searchingParents && existingParents.length === 0 && (
+                            <p className="text-sm text-gray-500 text-center py-2">
+                              No existing parents found. Add a new one below.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {formData.parents?.length === 0 && modalMode !== 'view' && !showParentSearch && (
                     <div className="text-center py-8 text-gray-400">
                       <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
                       <p>No parents/guardians added yet</p>
+                      <p className="text-sm mt-2">Use "Link Existing Parent" above or add a new one below</p>
                     </div>
                   )}
 

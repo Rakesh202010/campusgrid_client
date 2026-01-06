@@ -12,7 +12,9 @@
   "dependencies": {
     "date-fns": "^4.1.0",
     "html2pdf.js": "^0.12.1",
+    "jsbarcode": "^3.12.1",
     "lucide-react": "^0.548.0",
+    "qrcode": "^1.5.4",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-router-dom": "^7.9.4"

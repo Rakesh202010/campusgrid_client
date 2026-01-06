@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react';
 import {
   Calendar, Clock, User, Users, Search, Filter, RefreshCw,
   ChevronLeft, ChevronRight, AlertTriangle, CheckCircle, X,
-  BookOpen, GraduationCap, ArrowRight, UserPlus, XCircle, Eye
+  BookOpen, GraduationCap, ArrowRight, UserPlus, XCircle, Eye, AlertCircle
 } from 'lucide-react';
-import { teachers, classConfig, academicSessions, timetable } from '../services/api';
+import { teachers, classConfig, academicSessions, timetable, teacherLeaves } from '../services/api';
 import { toast } from '../utils/toast';
 
 const DailyTimetableView = () => {
@@ -15,6 +15,7 @@ const DailyTimetableView = () => {
   const [dailyTimetable, setDailyTimetable] = useState(null);
   const [substitutions, setSubstitutions] = useState([]);
   const [availableTeachers, setAvailableTeachers] = useState([]);
+  const [teachersOnLeave, setTeachersOnLeave] = useState([]); // Teachers on leave for selected date
   
   // UI States
   const [loading, setLoading] = useState(true);
@@ -96,9 +97,10 @@ const DailyTimetableView = () => {
         params.class_section_id = selectedClass;
       }
 
-      const [timetableRes, subsRes] = await Promise.all([
+      const [timetableRes, subsRes, leaveRes] = await Promise.all([
         timetable.getDaily(params),
-        timetable.getSubstitutions(selectedDate)
+        timetable.getSubstitutions(selectedDate),
+        teacherLeaves.getOnLeave(selectedDate) // Fetch teachers on leave
       ]);
 
       if (timetableRes?.success) {
@@ -107,9 +109,22 @@ const DailyTimetableView = () => {
       if (subsRes?.success) {
         setSubstitutions(subsRes.data || []);
       }
+      if (leaveRes?.success) {
+        setTeachersOnLeave(leaveRes.data || []);
+      }
     } catch (e) {
       console.error('Error fetching daily data:', e);
     }
+  };
+
+  // Helper to check if a teacher is on leave
+  const isTeacherOnLeave = (teacherId) => {
+    return teachersOnLeave.some(leave => leave.teacherId === teacherId);
+  };
+
+  // Get leave info for a teacher
+  const getTeacherLeaveInfo = (teacherId) => {
+    return teachersOnLeave.find(leave => leave.teacherId === teacherId);
   };
 
   const handleOpenSubstitution = async (entry) => {
@@ -246,6 +261,13 @@ const DailyTimetableView = () => {
             <span className="text-lg font-semibold">{substitutions.length}</span>
             <span className="text-white/70 text-sm">Substitutions</span>
           </div>
+          {teachersOnLeave.length > 0 && (
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-red-300" />
+              <span className="text-lg font-semibold">{teachersOnLeave.length}</span>
+              <span className="text-white/70 text-sm">On Leave</span>
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <Users className="w-5 h-5 text-white/70" />
             <span className="text-lg font-semibold">{teachersList.length}</span>
@@ -320,6 +342,48 @@ const DailyTimetableView = () => {
         </div>
       </div>
 
+      {/* Teachers On Leave Summary */}
+      {teachersOnLeave.length > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-5">
+          <h3 className="font-semibold text-red-800 flex items-center gap-2 mb-3">
+            <AlertCircle className="w-5 h-5" />
+            Teachers On Leave Today ({teachersOnLeave.length})
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {teachersOnLeave.map(leave => (
+              <div key={leave.leaveId} className="bg-white rounded-xl p-3 border border-red-200">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-red-400 to-red-500 flex items-center justify-center text-white font-bold text-sm">
+                    {leave.teacherName?.split(' ').map(n => n?.[0]).join('').slice(0,2) || '?'}
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-800">{leave.teacherName}</p>
+                    <p className="text-xs text-gray-500">{leave.designation || leave.department || 'Teacher'}</p>
+                  </div>
+                </div>
+                <div className="mt-2 flex items-center justify-between">
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${
+                    leave.leaveType === 'SL' || leave.leaveType === 'sick' ? 'bg-red-100 text-red-700' :
+                    leave.leaveType === 'CL' || leave.leaveType === 'casual' ? 'bg-blue-100 text-blue-700' :
+                    leave.leaveType === 'EL' || leave.leaveType === 'earned' ? 'bg-green-100 text-green-700' :
+                    leave.leaveType === 'ML' ? 'bg-pink-100 text-pink-700' :
+                    leave.leaveType === 'PL' ? 'bg-purple-100 text-purple-700' :
+                    'bg-gray-100 text-gray-700'
+                  }`}>
+                    {leave.leaveTypeName || leave.leaveType || 'Leave'}
+                  </span>
+                  {leave.reason && (
+                    <span className="text-xs text-gray-400 truncate max-w-[150px]" title={leave.reason}>
+                      {leave.reason}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Substitutions Summary */}
       {substitutions.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
@@ -386,12 +450,17 @@ const DailyTimetableView = () => {
                 </tr>
               </thead>
               <tbody>
-                {dailyTimetable.entries.map((entry, idx) => (
-                  <tr key={entry.id || idx} className={`hover:bg-gray-50 ${entry.isSubstituted ? 'bg-amber-50' : ''}`}>
+                {dailyTimetable.entries.map((entry, idx) => {
+                  const onLeave = !entry.isSubstituted && isTeacherOnLeave(entry.originalTeacherId);
+                  return (
+                  <tr key={entry.id || idx} className={`hover:bg-gray-50 ${
+                    entry.isSubstituted ? 'bg-amber-50' : onLeave ? 'bg-red-50' : ''
+                  }`}>
                     {/* Period */}
                     <td className="px-4 py-4 border-b">
                       <div className={`inline-flex items-center justify-center w-10 h-10 rounded-xl font-bold ${
-                        entry.isSubstituted ? 'bg-amber-200 text-amber-800' : 'bg-indigo-100 text-indigo-700'
+                        entry.isSubstituted ? 'bg-amber-200 text-amber-800' : 
+                        onLeave ? 'bg-red-200 text-red-800' : 'bg-indigo-100 text-indigo-700'
                       }`}>
                         P{entry.periodNumber}
                       </div>
@@ -433,6 +502,24 @@ const DailyTimetableView = () => {
                             {entry.substituteTeacherName}
                           </p>
                         </div>
+                      ) : isTeacherOnLeave(entry.originalTeacherId) ? (
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <User className="w-4 h-4 text-red-500" />
+                            <span className="font-medium text-gray-800">{entry.effectiveTeacherName || 'No Teacher'}</span>
+                          </div>
+                          <div className="flex items-center gap-1 mt-1">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-medium">
+                              <AlertCircle className="w-3 h-3" />
+                              On Leave
+                            </span>
+                            {getTeacherLeaveInfo(entry.originalTeacherId)?.leaveType && (
+                              <span className="text-xs text-gray-500">
+                                ({getTeacherLeaveInfo(entry.originalTeacherId).leaveType})
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       ) : (
                         <div className="flex items-center gap-2">
                           <User className="w-4 h-4 text-blue-500" />
@@ -447,6 +534,11 @@ const DailyTimetableView = () => {
                         <span className="inline-flex items-center gap-1 px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-medium">
                           <UserPlus className="w-3 h-3" />
                           Substituted
+                        </span>
+                      ) : onLeave ? (
+                        <span className="inline-flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-medium">
+                          <AlertCircle className="w-3 h-3" />
+                          On Leave
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
@@ -472,7 +564,8 @@ const DailyTimetableView = () => {
                       )}
                     </td>
                   </tr>
-                ))}
+                );
+                })}
               </tbody>
             </table>
           </div>

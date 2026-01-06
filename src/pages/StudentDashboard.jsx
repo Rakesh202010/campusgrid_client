@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link, Outlet, useLocation } from 'react-router-dom';
+import { useNavigate, Link, Routes, Route, useLocation } from 'react-router-dom';
 import {
   GraduationCap, Home, BookOpen, Calendar, ClipboardList, FileText,
   CreditCard, Bell, User, Settings, LogOut, Menu, X, ChevronRight,
-  Clock, Award, MessageSquare, Download, CheckCircle2, TrendingUp
+  Clock, Award, MessageSquare, Download, CheckCircle2, TrendingUp, MapPin
 } from 'lucide-react';
+import { timetable, academicSessions } from '../services/api';
+import StudentTimetablePage from './student/StudentTimetablePage';
 
 const STUDENT_MENU = [
   { id: 'home', label: 'Home', icon: Home, path: '/student' },
@@ -182,20 +184,122 @@ const StudentDashboard = () => {
 
       {/* Main Content */}
       <main className="lg:ml-72 pt-16 lg:pt-0 min-h-screen">
-        {isHomePage ? (
-          <StudentHome user={user} school={school} />
-        ) : (
-          <div className="p-4 lg:p-6">
-            <Outlet />
-          </div>
-        )}
+        <Routes>
+          <Route index element={<StudentHome user={user} school={school} />} />
+          <Route path="timetable" element={<div className="p-4 lg:p-6"><StudentTimetablePage /></div>} />
+          <Route path="profile" element={<StudentComingSoon title="My Profile" />} />
+          <Route path="attendance" element={<StudentComingSoon title="Attendance" />} />
+          <Route path="subjects" element={<StudentComingSoon title="My Subjects" />} />
+          <Route path="exams" element={<StudentComingSoon title="Exams & Results" />} />
+          <Route path="assignments" element={<StudentComingSoon title="Assignments" />} />
+          <Route path="fees" element={<StudentComingSoon title="Fee Details" />} />
+          <Route path="notices" element={<StudentComingSoon title="Notices" />} />
+          <Route path="downloads" element={<StudentComingSoon title="Downloads" />} />
+          <Route path="*" element={<StudentHome user={user} school={school} />} />
+        </Routes>
       </main>
     </div>
   );
 };
 
+// Coming Soon Placeholder
+const StudentComingSoon = ({ title }) => (
+  <div className="p-4 lg:p-6">
+    <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl p-8 text-center border border-slate-700">
+      <div className="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+        <Clock className="w-8 h-8 text-blue-400" />
+      </div>
+      <h2 className="text-2xl font-bold text-white mb-2">{title}</h2>
+      <p className="text-slate-400 mb-4">This feature is coming soon!</p>
+      <Link 
+        to="/student" 
+        className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+      >
+        <Home className="w-4 h-4" />
+        Back to Home
+      </Link>
+    </div>
+  </div>
+);
+
 // Student Home Component
 const StudentHome = ({ user, school }) => {
+  const [todaysSchedule, setTodaysSchedule] = useState([]);
+  const [loadingTimetable, setLoadingTimetable] = useState(true);
+  const [academicSession, setAcademicSession] = useState(null);
+
+  useEffect(() => {
+    fetchAcademicSession();
+  }, []);
+
+  useEffect(() => {
+    if (user?.classSectionId && academicSession?.id) {
+      fetchTodaysTimetable();
+    } else if (academicSession !== null) {
+      // If academic session loaded but classSectionId missing, stop loading
+      setLoadingTimetable(false);
+    }
+  }, [user, academicSession]);
+
+  const fetchAcademicSession = async () => {
+    try {
+      const response = await academicSessions.getCurrent();
+      if (response.success && response.data) {
+        setAcademicSession(response.data);
+      } else {
+        setAcademicSession({});
+        setLoadingTimetable(false);
+      }
+    } catch (error) {
+      console.error('Error fetching academic session:', error);
+      setAcademicSession({});
+      setLoadingTimetable(false);
+    }
+  };
+
+  const fetchTodaysTimetable = async () => {
+    if (!user?.classSectionId || !academicSession?.id) {
+      setLoadingTimetable(false);
+      return;
+    }
+    
+    setLoadingTimetable(true);
+    try {
+      const response = await timetable.getClass(user.classSectionId, {
+        academic_session_id: academicSession.id
+      });
+      if (response.success && response.data) {
+        // Get today's day name
+        const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const today = days[new Date().getDay()];
+        
+        // Filter for today's schedule
+        const todayEntries = Object.values(response.data)
+          .filter(entry => entry.dayOfWeek === today)
+          .sort((a, b) => a.periodNumber - b.periodNumber);
+        
+        setTodaysSchedule(todayEntries);
+      }
+    } catch (error) {
+      console.error('Error fetching timetable:', error);
+    } finally {
+      setLoadingTimetable(false);
+    }
+  };
+
+  const formatTime = (timeString) => {
+    if (!timeString) return '';
+    try {
+      const [hours, minutes] = timeString.split(':');
+      const hour = parseInt(hours);
+      const ampm = hour >= 12 ? 'PM' : 'AM';
+      const displayHour = hour % 12 || 12;
+      return `${displayHour}:${minutes} ${ampm}`;
+    } catch {
+      return timeString;
+    }
+  };
+
   const quickLinks = [
     { label: 'View Timetable', icon: Clock, path: '/student/timetable', color: 'from-blue-500 to-cyan-500' },
     { label: 'Check Attendance', icon: CheckCircle2, path: '/student/attendance', color: 'from-emerald-500 to-teal-500' },
@@ -203,12 +307,19 @@ const StudentHome = ({ user, school }) => {
     { label: 'Fee Status', icon: CreditCard, path: '/student/fees', color: 'from-amber-500 to-orange-500' },
   ];
 
+  // Calculate dynamic stats
+  const uniqueSubjects = [...new Set(todaysSchedule.map(e => e.subjectName).filter(Boolean))];
   const stats = [
     { label: 'Attendance', value: '92%', icon: CheckCircle2, color: 'text-emerald-400' },
-    { label: 'Subjects', value: '8', icon: BookOpen, color: 'text-blue-400' },
-    { label: 'Assignments', value: '3 Pending', icon: FileText, color: 'text-amber-400' },
+    { label: 'Today\'s Classes', value: todaysSchedule.length.toString(), icon: BookOpen, color: 'text-blue-400' },
+    { label: 'Subjects Today', value: uniqueSubjects.length.toString(), icon: FileText, color: 'text-amber-400' },
     { label: 'Next Exam', value: '5 Days', icon: Calendar, color: 'text-purple-400' },
   ];
+
+  const getDayName = () => {
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    return days[new Date().getDay()];
+  };
 
   return (
     <div className="p-4 lg:p-6">
@@ -275,26 +386,71 @@ const StudentHome = ({ user, school }) => {
       {/* Today's Schedule */}
       <div className="grid lg:grid-cols-2 gap-6">
         <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-5 border border-slate-700">
-          <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <Clock className="w-5 h-5 text-blue-400" />
-            Today's Schedule
-          </h3>
-          <div className="space-y-3">
-            {[
-              { time: '08:00 - 08:45', subject: 'Mathematics', teacher: 'Mr. Sharma' },
-              { time: '08:45 - 09:30', subject: 'English', teacher: 'Mrs. Gupta' },
-              { time: '09:45 - 10:30', subject: 'Science', teacher: 'Mr. Kumar' },
-              { time: '10:30 - 11:15', subject: 'Hindi', teacher: 'Mrs. Singh' },
-            ].map((item, idx) => (
-              <div key={idx} className="flex items-center gap-4 p-3 bg-slate-700/30 rounded-lg">
-                <div className="text-sm text-slate-400 w-28">{item.time}</div>
-                <div className="flex-1">
-                  <p className="font-medium text-white">{item.subject}</p>
-                  <p className="text-sm text-slate-400">{item.teacher}</p>
-                </div>
-              </div>
-            ))}
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+              <Clock className="w-5 h-5 text-blue-400" />
+              Today's Schedule ({getDayName()})
+            </h3>
+            <Link to="/student/timetable" className="text-sm text-blue-400 hover:text-blue-300">
+              View Full →
+            </Link>
           </div>
+          
+          {loadingTimetable ? (
+            <div className="flex items-center justify-center h-48">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            </div>
+          ) : getDayName() === 'Sunday' ? (
+            <div className="text-center py-8">
+              <div className="text-4xl mb-3">🌟</div>
+              <p className="text-white font-medium">Sunday - Holiday!</p>
+              <p className="text-slate-400 text-sm">Enjoy your day off</p>
+            </div>
+          ) : todaysSchedule.length > 0 ? (
+            <div className="space-y-3">
+              {todaysSchedule.slice(0, 5).map((item, idx) => (
+                <div key={idx} className="flex items-center gap-4 p-3 bg-slate-700/30 rounded-lg">
+                  <div className="flex-shrink-0">
+                    <span className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded text-xs font-medium">
+                      P{item.periodNumber}
+                    </span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-white truncate">{item.subjectName || 'No Subject'}</p>
+                    <div className="flex items-center gap-3 text-sm text-slate-400">
+                      {item.teacherName && (
+                        <span className="flex items-center gap-1 truncate">
+                          <User className="w-3 h-3" />
+                          {item.teacherName}
+                        </span>
+                      )}
+                      {item.room && (
+                        <span className="flex items-center gap-1">
+                          <MapPin className="w-3 h-3" />
+                          {item.room}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-xs text-slate-500 text-right">
+                    {formatTime(item.startTime)}<br />
+                    {formatTime(item.endTime)}
+                  </div>
+                </div>
+              ))}
+              {todaysSchedule.length > 5 && (
+                <p className="text-center text-sm text-slate-400">
+                  +{todaysSchedule.length - 5} more classes
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <BookOpen className="w-10 h-10 text-slate-600 mx-auto mb-3" />
+              <p className="text-white font-medium">No Classes Today</p>
+              <p className="text-slate-400 text-sm">Timetable not configured for today</p>
+            </div>
+          )}
         </div>
 
         {/* Recent Notices */}
