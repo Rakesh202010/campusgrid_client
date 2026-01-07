@@ -733,7 +733,7 @@ const Fees = () => {
                         <div className="bg-white/10 rounded-lg p-3 text-center">
                           <p className="text-gray-400 text-xs uppercase">Total Due</p>
                           <p className="text-xl font-bold text-red-400">
-                            ₹{studentFeeDetails?.summary?.balance?.toLocaleString() || 0}
+                            ₹{(studentFeeDetails?.summary?.grandTotal || studentFeeDetails?.summary?.totalPayable || 0).toLocaleString()}
                           </p>
                         </div>
                         <div className="bg-white/10 rounded-lg p-3 text-center">

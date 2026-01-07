@@ -337,6 +337,7 @@ const TeacherTimetable = () => {
 
   // Get period info
   const getTimeIcon = (time) => {
+    if (!time) return Clock; // Default icon if time is undefined
     const hour = parseInt(time.split(':')[0]);
     if (hour < 10) return Sunrise;
     if (hour < 12) return Sun;
@@ -532,12 +533,11 @@ const TeacherTimetable = () => {
                   {/* Calculate max periods to determine rows */}
                   {(() => {
                     // Get maximum period number across all days
-                    const maxPeriods = Math.max(
-                      ...DAYS.map(day => 
-                        (dayWisePeriods[day] || []).filter(p => p.type !== 'break').length
-                      ),
-                      periods.filter(p => p.type !== 'break').length
+                    const dayPeriodCounts = DAYS.map(day => 
+                      (dayWisePeriods[day] || []).filter(p => p.type !== 'break').length
                     );
+                    const defaultPeriodCount = periods.filter(p => p.type !== 'break').length;
+                    const maxPeriods = Math.max(...dayPeriodCounts, defaultPeriodCount, 0) || 8; // Default to 8 if all are 0
                     
                     // Build unified timeline with period numbers
                     const rows = [];
@@ -574,14 +574,17 @@ const TeacherTimetable = () => {
                               ) : (
                                 <>
                                   {(() => {
-                                    const firstDayPeriod = (dayWisePeriods['Monday'] || periods).find(p => p.periodNumber === row.periodNumber);
+                                    const mondayPeriods = dayWisePeriods['Monday'] || [];
+                                    const fallbackPeriods = periods.filter(p => p.type !== 'break') || [];
+                                    const allPeriods = mondayPeriods.length > 0 ? mondayPeriods : fallbackPeriods;
+                                    const firstDayPeriod = allPeriods.find(p => p.periodNumber === row.periodNumber);
                                     const TimeIcon = getTimeIcon(firstDayPeriod?.start);
                                     return (
                                       <>
                                         <TimeIcon className="w-4 h-4 text-gray-400" />
                                         <div>
                                           <p className="font-medium text-gray-800">Period {row.periodNumber}</p>
-                                          {firstDayPeriod && (
+                                          {firstDayPeriod && firstDayPeriod.start && firstDayPeriod.end && (
                                             <p className="text-xs text-gray-500">{firstDayPeriod.start} - {firstDayPeriod.end}</p>
                                           )}
                                         </div>
@@ -615,13 +618,16 @@ const TeacherTimetable = () => {
                               );
                             }
                             
-                            // Find the period for this day
-                            const dayPeriod = dayPeriods.find(p => p.periodNumber === row.periodNumber);
+                            // Find the period for this day - check both class periods and fallback periods
+                            const classPeriods = dayPeriods.filter(p => p.type !== 'break');
+                            const dayPeriod = classPeriods.find(p => p.periodNumber === row.periodNumber) || 
+                                              { periodNumber: row.periodNumber, id: null, start: null, end: null };
                             
-                            if (!dayPeriod) {
+                            // If this day doesn't have this period at all (based on template), show empty
+                            if (classPeriods.length > 0 && !classPeriods.find(p => p.periodNumber === row.periodNumber)) {
                               return (
                                 <td key={day} className="p-2 border-b border-gray-100 text-center">
-                                  <div className="text-gray-300 text-xs">No period</div>
+                                  <div className="text-gray-300 text-xs">—</div>
                                 </td>
                               );
                             }
@@ -746,7 +752,7 @@ const TeacherTimetable = () => {
                 <div>
                   <h3 className="text-xl font-bold">Add Period</h3>
                   <p className="text-white/70 text-sm mt-1">
-                    {showAddModal.day} - {periods.find(p => p.id === showAddModal.periodId)?.name}
+                    {showAddModal.day} - Period {showAddModal.periodNumber}
                   </p>
                 </div>
                 <button onClick={() => setShowAddModal(null)} className="p-2 hover:bg-white/20 rounded-lg">
