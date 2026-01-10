@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { User, Bell, Calendar, Sliders, ChevronRight, BookOpen, Layers, IndianRupee, Users, Clock, Hash, CreditCard, KeyRound, IdCard, Printer } from 'lucide-react';
+import { User, Bell, Calendar, Sliders, ChevronRight, BookOpen, Layers, IndianRupee, Clock, Hash, CreditCard, KeyRound, IdCard, Printer } from 'lucide-react';
 
 const Settings = () => {
   const navigate = useNavigate();
@@ -39,13 +39,6 @@ const Settings = () => {
       icon: CreditCard,
       path: '/settings/fee-payment',
       color: 'bg-emerald-100 text-emerald-600'
-    },
-    { 
-      label: 'Staff & Users', 
-      description: 'Departments, non-teaching staff, roles & RBAC permissions',
-      icon: Users,
-      path: '/settings/people',
-      color: 'bg-orange-100 text-orange-600'
     },
     { 
       label: 'Class Timings', 

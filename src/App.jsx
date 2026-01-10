@@ -32,6 +32,8 @@ import UserLoginManagement from './pages/UserLoginManagement';
 import StreamsConfiguration from './pages/StreamsConfiguration';
 import IdCardConfiguration from './pages/IdCardConfiguration';
 import IdCardPrint from './pages/IdCardPrint';
+import RosterConfiguration from './pages/RosterConfiguration';
+import RosterAssignment from './pages/RosterAssignment';
 
 // Role-based Dashboards
 import StudentDashboard from './pages/StudentDashboard';
@@ -220,6 +222,8 @@ function App() {
           <Route path="settings/user-login" element={<UserLoginManagement />} />
           <Route path="settings/id-cards" element={<IdCardConfiguration />} />
           <Route path="id-cards/print" element={<IdCardPrint />} />
+          <Route path="roster" element={<RosterConfiguration />} />
+          <Route path="roster/assignments" element={<RosterAssignment />} />
           <Route path="change-password" element={<ChangePassword />} />
         </Route>
 

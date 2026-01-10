@@ -1277,6 +1277,108 @@ export const feeManagement = {
     }),
 };
 
+// Roster & Duties
+export const roster = {
+  // Roster Types
+  getRosterTypes: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/roster/types${queryString ? `?${queryString}` : ''}`);
+  },
+  createRosterType: (data) =>
+    apiRequest('/api/roster/types', { method: 'POST', body: JSON.stringify(data) }),
+  updateRosterType: (id, data) =>
+    apiRequest(`/api/roster/types/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+
+  // Duty Categories
+  getDutyCategories: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/roster/categories${queryString ? `?${queryString}` : ''}`);
+  },
+  createDutyCategory: (data) =>
+    apiRequest('/api/roster/categories', { method: 'POST', body: JSON.stringify(data) }),
+  updateDutyCategory: (id, data) =>
+    apiRequest(`/api/roster/categories/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteDutyCategory: (id) =>
+    apiRequest(`/api/roster/categories/${id}`, { method: 'DELETE' }),
+
+  // Time Slots
+  getTimeSlots: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/roster/time-slots${queryString ? `?${queryString}` : ''}`);
+  },
+  createTimeSlot: (data) =>
+    apiRequest('/api/roster/time-slots', { method: 'POST', body: JSON.stringify(data) }),
+  updateTimeSlot: (id, data) =>
+    apiRequest(`/api/roster/time-slots/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteTimeSlot: (id) =>
+    apiRequest(`/api/roster/time-slots/${id}`, { method: 'DELETE' }),
+
+  // Locations
+  getLocations: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/roster/locations${queryString ? `?${queryString}` : ''}`);
+  },
+  createLocation: (data) =>
+    apiRequest('/api/roster/locations', { method: 'POST', body: JSON.stringify(data) }),
+  updateLocation: (id, data) =>
+    apiRequest(`/api/roster/locations/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteLocation: (id) =>
+    apiRequest(`/api/roster/locations/${id}`, { method: 'DELETE' }),
+
+  // Duty Roles
+  getDutyRoles: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/roster/roles${queryString ? `?${queryString}` : ''}`);
+  },
+  createDutyRole: (data) =>
+    apiRequest('/api/roster/roles', { method: 'POST', body: JSON.stringify(data) }),
+  updateDutyRole: (id, data) =>
+    apiRequest(`/api/roster/roles/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteDutyRole: (id) =>
+    apiRequest(`/api/roster/roles/${id}`, { method: 'DELETE' }),
+
+  // Duties
+  getDuties: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/roster/duties${queryString ? `?${queryString}` : ''}`);
+  },
+  getDutyById: (id) => apiRequest(`/api/roster/duties/${id}`),
+  createDuty: (data) =>
+    apiRequest('/api/roster/duties', { method: 'POST', body: JSON.stringify(data) }),
+  updateDuty: (id, data) =>
+    apiRequest(`/api/roster/duties/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteDuty: (id) =>
+    apiRequest(`/api/roster/duties/${id}`, { method: 'DELETE' }),
+
+  // Roster Assignments
+  getAssignments: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/roster/assignments${queryString ? `?${queryString}` : ''}`);
+  },
+  createAssignment: (data) =>
+    apiRequest('/api/roster/assignments', { method: 'POST', body: JSON.stringify(data) }),
+  updateAssignment: (id, data) =>
+    apiRequest(`/api/roster/assignments/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteAssignment: (id, data = {}) =>
+    apiRequest(`/api/roster/assignments/${id}`, { method: 'DELETE', body: JSON.stringify(data) }),
+  approveAssignment: (id, approved) =>
+    apiRequest(`/api/roster/assignments/${id}/approve`, { method: 'POST', body: JSON.stringify({ approved }) }),
+
+  // Reporting
+  getDailySheet: (date) => apiRequest(`/api/roster/daily-sheet?date=${date}`),
+  getMyDuties: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/roster/my-duties?${queryString}`);
+  },
+  getSupervisedStudents: (supervisorId, date) =>
+    apiRequest(`/api/roster/supervised-students?supervisor_id=${supervisorId}&date=${date}`),
+
+  // Config
+  getConfig: () => apiRequest('/api/roster/config'),
+  updateConfig: (data) =>
+    apiRequest('/api/roster/config', { method: 'PUT', body: JSON.stringify(data) }),
+};
+
 export default {
   auth,
   students,
@@ -1294,5 +1396,6 @@ export default {
   numberSettings,
   dashboard,
   idCards,
+  roster,
 };
 
