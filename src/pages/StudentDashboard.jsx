@@ -3,14 +3,17 @@ import { useNavigate, Link, Routes, Route, useLocation } from 'react-router-dom'
 import {
   GraduationCap, Home, BookOpen, Calendar, ClipboardList, FileText,
   CreditCard, Bell, User, Settings, LogOut, Menu, X, ChevronRight,
-  Clock, Award, MessageSquare, Download, CheckCircle2, TrendingUp, MapPin
+  Clock, Award, MessageSquare, Download, CheckCircle2, TrendingUp, MapPin, ListTodo
 } from 'lucide-react';
 import { timetable, academicSessions } from '../services/api';
 import StudentTimetablePage from './student/StudentTimetablePage';
+import MyDuties from '../components/MyDuties';
+import DutiesReport from './DutiesReport';
 
 const STUDENT_MENU = [
   { id: 'home', label: 'Home', icon: Home, path: '/student' },
   { id: 'profile', label: 'My Profile', icon: User, path: '/student/profile' },
+  { id: 'duties', label: 'My Duties', icon: ListTodo, path: '/student/duties' },
   { id: 'attendance', label: 'Attendance', icon: CheckCircle2, path: '/student/attendance' },
   { id: 'timetable', label: 'Timetable', icon: Clock, path: '/student/timetable' },
   { id: 'subjects', label: 'My Subjects', icon: BookOpen, path: '/student/subjects' },
@@ -185,7 +188,8 @@ const StudentDashboard = () => {
       {/* Main Content */}
       <main className="lg:ml-72 pt-16 lg:pt-0 min-h-screen">
         <Routes>
-          <Route index element={<StudentHome user={user} school={school} />} />
+          <Route index element={<StudentHome user={user} school={school} navigate={navigate} />} />
+          <Route path="duties" element={<DutiesReport userType="student" userId={user?.id} backPath="/student" accentColor="blue" />} />
           <Route path="timetable" element={<div className="p-4 lg:p-6"><StudentTimetablePage /></div>} />
           <Route path="profile" element={<StudentComingSoon title="My Profile" />} />
           <Route path="attendance" element={<StudentComingSoon title="Attendance" />} />
@@ -195,7 +199,7 @@ const StudentDashboard = () => {
           <Route path="fees" element={<StudentComingSoon title="Fee Details" />} />
           <Route path="notices" element={<StudentComingSoon title="Notices" />} />
           <Route path="downloads" element={<StudentComingSoon title="Downloads" />} />
-          <Route path="*" element={<StudentHome user={user} school={school} />} />
+          <Route path="*" element={<StudentHome user={user} school={school} navigate={navigate} />} />
         </Routes>
       </main>
     </div>
@@ -223,7 +227,7 @@ const StudentComingSoon = ({ title }) => (
 );
 
 // Student Home Component
-const StudentHome = ({ user, school }) => {
+const StudentHome = ({ user, school, navigate }) => {
   const [todaysSchedule, setTodaysSchedule] = useState([]);
   const [loadingTimetable, setLoadingTimetable] = useState(true);
   const [academicSession, setAcademicSession] = useState(null);
@@ -478,6 +482,18 @@ const StudentHome = ({ user, school }) => {
             View All Notices →
           </Link>
         </div>
+      </div>
+
+      {/* Today's Duties */}
+      <div className="mt-6">
+        <MyDuties
+          assigneeId={user?.id}
+          assigneeType="student"
+          todayOnly={true}
+          title="Today's Duties"
+          accentColor="blue"
+          onViewAll={() => navigate('/student/duties')}
+        />
       </div>
     </div>
   );

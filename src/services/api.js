@@ -1370,8 +1370,32 @@ export const roster = {
     const queryString = new URLSearchParams(params).toString();
     return apiRequest(`/api/roster/my-duties?${queryString}`);
   },
-  getSupervisedStudents: (supervisorId, date) =>
-    apiRequest(`/api/roster/supervised-students?supervisor_id=${supervisorId}&date=${date}`),
+  getSupervisedStudents: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/roster/supervised-students?${queryString}`);
+  },
+  markComplete: (id, data = {}) =>
+    apiRequest(`/api/roster/assignments/${id}/complete`, { method: 'POST', body: JSON.stringify(data) }),
+  updateStatus: (id, data) =>
+    apiRequest(`/api/roster/assignments/${id}/status`, { method: 'POST', body: JSON.stringify(data) }),
+  acceptAssignment: (id) =>
+    apiRequest(`/api/roster/assignments/${id}/accept`, { method: 'POST' }),
+  declineAssignment: (id, reason) =>
+    apiRequest(`/api/roster/assignments/${id}/decline`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  
+  // Per-day acceptance/decline
+  getAssignmentDates: (id) =>
+    apiRequest(`/api/roster/assignments/${id}/dates`),
+  acceptDate: (assignmentId, dateId) =>
+    apiRequest(`/api/roster/assignments/${assignmentId}/dates/${dateId}/accept`, { method: 'POST' }),
+  declineDate: (assignmentId, dateId, reason) =>
+    apiRequest(`/api/roster/assignments/${assignmentId}/dates/${dateId}/decline`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  completeDate: (assignmentId, dateId, notes = '') =>
+    apiRequest(`/api/roster/assignments/${assignmentId}/dates/${dateId}/complete`, { method: 'POST', body: JSON.stringify({ notes }) }),
+  acceptAllDates: (id) =>
+    apiRequest(`/api/roster/assignments/${id}/accept-all`, { method: 'POST' }),
+  declineAllDates: (id, reason) =>
+    apiRequest(`/api/roster/assignments/${id}/decline-all`, { method: 'POST', body: JSON.stringify({ reason }) }),
 
   // Config
   getConfig: () => apiRequest('/api/roster/config'),

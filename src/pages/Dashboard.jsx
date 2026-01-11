@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { 
   Users, UserCog, BookOpen, GraduationCap, Calendar, Clock,
   TrendingUp, TrendingDown, IndianRupee, Building2, Award,
   UserPlus, Settings, ChevronRight, RefreshCw, BarChart3,
-  PieChart, Activity, Target, Briefcase, UserCheck, AlertCircle
+  PieChart, Activity, Target, Briefcase, UserCheck, AlertCircle,
+  ListTodo, MapPin, Shield, User
 } from 'lucide-react';
-import { dashboard } from '../services/api';
+import { dashboard, roster } from '../services/api';
 import { useAcademicSession } from '../contexts/AcademicSessionContext';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -16,10 +17,22 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
   const [error, setError] = useState(null);
+  const [todaysDuties, setTodaysDuties] = useState([]);
+  const [dutiesLoading, setDutiesLoading] = useState(false);
+
+  // Helper to format date as YYYY-MM-DD
+  const formatLocalDate = (date) => {
+    const d = new Date(date);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
 
   useEffect(() => {
     if (sessionId) {
       fetchDashboardData();
+      fetchTodaysDuties();
     }
   }, [sessionId]);
 
@@ -38,6 +51,25 @@ const Dashboard = () => {
       setError('Failed to load dashboard data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchTodaysDuties = async () => {
+    setDutiesLoading(true);
+    try {
+      const today = formatLocalDate(new Date());
+      const res = await roster.getAssignments({
+        start_date: today,
+        end_date: today,
+        academic_session_id: sessionId,
+      });
+      if (res?.success) {
+        setTodaysDuties(res.data || []);
+      }
+    } catch (e) {
+      console.error('Error fetching duties:', e);
+    } finally {
+      setDutiesLoading(false);
     }
   };
 
@@ -391,6 +423,130 @@ const Dashboard = () => {
             )}
           </div>
         </div>
+      </div>
+
+      {/* Today's Duty Assignments */}
+      <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+            <ListTodo className="w-5 h-5 text-indigo-600" />
+            Today's Duty Assignments
+          </h3>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-gray-500">
+              {formatLocalDate(new Date())}
+            </span>
+            <Link 
+              to="/roster"
+              className="text-sm text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
+            >
+              Manage <ChevronRight className="w-4 h-4" />
+            </Link>
+          </div>
+        </div>
+        
+        {dutiesLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <RefreshCw className="w-6 h-6 animate-spin text-indigo-500" />
+          </div>
+        ) : todaysDuties.length === 0 ? (
+          <div className="text-center py-8">
+            <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+            <p className="text-gray-500">No duties assigned for today</p>
+            <Link 
+              to="/roster"
+              className="mt-3 inline-flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-700"
+            >
+              <UserPlus className="w-4 h-4" />
+              Assign Duties
+            </Link>
+          </div>
+        ) : (
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            {todaysDuties.slice(0, 6).map((duty, idx) => (
+              <div 
+                key={duty.id || idx}
+                className="p-4 rounded-xl border border-gray-100 bg-gradient-to-br from-gray-50 to-white hover:shadow-md transition-shadow"
+              >
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <h4 className="font-semibold text-gray-800 truncate">
+                    {duty.duty_name || duty.roster_type_name || 'Duty'}
+                  </h4>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                    duty.assignee_type === 'teacher' ? 'bg-emerald-100 text-emerald-700' :
+                    duty.assignee_type === 'student' ? 'bg-blue-100 text-blue-700' :
+                    'bg-purple-100 text-purple-700'
+                  }`}>
+                    {duty.assignee_type}
+                  </span>
+                </div>
+                
+                <div className="flex items-center gap-2 mb-2">
+                  <User className="w-4 h-4 text-gray-400" />
+                  <span className="text-sm text-gray-700 truncate">
+                    {duty.assignee_name || 'Unknown'}
+                  </span>
+                </div>
+                
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
+                  {duty.time_slot_name && (
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      {duty.time_slot_name}
+                    </span>
+                  )}
+                  {duty.location_name && (
+                    <span className="flex items-center gap-1">
+                      <MapPin className="w-3 h-3" />
+                      {duty.location_name}
+                    </span>
+                  )}
+                  {duty.role_name && (
+                    <span className="flex items-center gap-1">
+                      <Shield className="w-3 h-3" />
+                      {duty.role_name}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        
+        {todaysDuties.length > 6 && (
+          <div className="mt-4 pt-4 border-t border-gray-100 text-center">
+            <Link 
+              to="/roster"
+              className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
+            >
+              View all {todaysDuties.length} assignments →
+            </Link>
+          </div>
+        )}
+
+        {/* Quick Stats */}
+        {todaysDuties.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-3 gap-4">
+            <div className="text-center">
+              <p className="text-2xl font-bold text-emerald-600">
+                {todaysDuties.filter(d => d.assignee_type === 'teacher').length}
+              </p>
+              <p className="text-xs text-gray-500">Teachers</p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-bold text-purple-600">
+                {todaysDuties.filter(d => d.assignee_type === 'staff').length}
+              </p>
+              <p className="text-xs text-gray-500">Staff</p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-bold text-blue-600">
+                {todaysDuties.filter(d => d.assignee_type === 'student').length}
+              </p>
+              <p className="text-xs text-gray-500">Students</p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Department Distribution & Quick Actions */}

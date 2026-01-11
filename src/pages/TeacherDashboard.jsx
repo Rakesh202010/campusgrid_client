@@ -3,12 +3,15 @@ import { useNavigate, Link, useLocation } from 'react-router-dom';
 import {
   BookOpen, Home, User, Calendar, ClipboardList, Users,
   Bell, LogOut, Menu, X, ChevronRight, Clock, Award,
-  CheckCircle2, FileText, BarChart3, GraduationCap, RefreshCw
+  CheckCircle2, FileText, BarChart3, GraduationCap, RefreshCw, ListTodo
 } from 'lucide-react';
+import MyDuties from '../components/MyDuties';
+import DutiesReport from './DutiesReport';
 
 const TEACHER_MENU = [
   { id: 'home', label: 'Home', icon: Home, path: '/teacher' },
   { id: 'profile', label: 'My Profile', icon: User, path: '/teacher/profile' },
+  { id: 'duties', label: 'Duties & Responsibilities', icon: ListTodo, path: '/teacher/duties' },
   { id: 'timetable', label: 'My Timetable', icon: Clock, path: '/teacher/timetable' },
   { id: 'classes', label: 'My Classes', icon: Users, path: '/teacher/classes' },
   { id: 'attendance', label: 'Take Attendance', icon: CheckCircle2, path: '/teacher/attendance' },
@@ -71,6 +74,7 @@ const TeacherDashboard = () => {
   const getCurrentPage = () => {
     const path = location.pathname;
     if (path === '/teacher' || path === '/teacher/') return 'home';
+    if (path.includes('/duties')) return 'duties';
     if (path.includes('/timetable')) return 'timetable';
     if (path.includes('/profile')) return 'profile';
     if (path.includes('/classes')) return 'classes';
@@ -219,9 +223,17 @@ const TeacherDashboard = () => {
 
       {/* Main Content */}
       <main className="lg:ml-72 pt-16 lg:pt-0 min-h-screen">
-        {currentPage === 'home' && <TeacherHome user={user} school={school} />}
+        {currentPage === 'home' && <TeacherHome user={user} school={school} navigate={navigate} />}
         {currentPage === 'timetable' && <TeacherTimetablePage user={user} />}
-        {currentPage !== 'home' && currentPage !== 'timetable' && (
+        {currentPage === 'duties' && (
+          <DutiesReport 
+            userType="teacher"
+            userId={user?.id}
+            backPath="/teacher"
+            accentColor="emerald"
+          />
+        )}
+        {currentPage !== 'home' && currentPage !== 'timetable' && currentPage !== 'duties' && (
           <div className="p-4 lg:p-6">
             <ComingSoon title={TEACHER_MENU.find(m => m.id === currentPage)?.label || 'Page'} />
           </div>
@@ -245,7 +257,7 @@ const ComingSoon = ({ title }) => (
 );
 
 // Teacher Home Component
-const TeacherHome = ({ user, school }) => {
+const TeacherHome = ({ user, school, navigate }) => {
   const [loading, setLoading] = useState(true);
   const [todaySchedule, setTodaySchedule] = useState([]);
   const [stats, setStats] = useState({ classes: 0, periods: 0, subjects: 0, today: 0 });
@@ -255,6 +267,15 @@ const TeacherHome = ({ user, school }) => {
   const getDayOfWeek = () => {
     const dayIdx = new Date().getDay();
     return dayIdx === 0 ? 'Sunday' : DAYS[dayIdx - 1];
+  };
+
+  const formatDate = () => {
+    return new Date().toLocaleDateString('en-US', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
   };
 
   useEffect(() => {
@@ -316,15 +337,8 @@ const TeacherHome = ({ user, school }) => {
   const quickLinks = [
     { label: 'Take Attendance', icon: CheckCircle2, path: '/teacher/attendance', color: 'from-emerald-500 to-teal-500' },
     { label: 'View Timetable', icon: Clock, path: '/teacher/timetable', color: 'from-blue-500 to-cyan-500' },
-    { label: 'Enter Marks', icon: ClipboardList, path: '/teacher/exams', color: 'from-purple-500 to-pink-500' },
+    { label: 'My Duties', icon: ListTodo, path: '/teacher/duties', color: 'from-orange-500 to-rose-500' },
     { label: 'Apply Leave', icon: Calendar, path: '/teacher/leave', color: 'from-amber-500 to-orange-500' },
-  ];
-
-  const statsConfig = [
-    { label: 'My Sections', value: stats.classes, icon: Users, color: 'text-blue-400' },
-    { label: 'Periods/Week', value: stats.periods, icon: Clock, color: 'text-emerald-400' },
-    { label: 'Subjects', value: stats.subjects, icon: BookOpen, color: 'text-purple-400' },
-    { label: 'Today', value: stats.today, icon: Calendar, color: 'text-amber-400' },
   ];
 
   const getGreeting = () => {
@@ -335,158 +349,262 @@ const TeacherHome = ({ user, school }) => {
   };
 
   const SUBJECT_COLORS = [
-    { bg: 'bg-blue-500/20', text: 'text-blue-300' },
-    { bg: 'bg-purple-500/20', text: 'text-purple-300' },
-    { bg: 'bg-emerald-500/20', text: 'text-emerald-300' },
-    { bg: 'bg-amber-500/20', text: 'text-amber-300' },
+    { bg: 'bg-blue-500/20', text: 'text-blue-300', border: 'border-blue-500/30' },
+    { bg: 'bg-purple-500/20', text: 'text-purple-300', border: 'border-purple-500/30' },
+    { bg: 'bg-emerald-500/20', text: 'text-emerald-300', border: 'border-emerald-500/30' },
+    { bg: 'bg-amber-500/20', text: 'text-amber-300', border: 'border-amber-500/30' },
   ];
 
   const getSubjectColor = (idx) => SUBJECT_COLORS[idx % SUBJECT_COLORS.length];
 
   return (
-    <div className="p-4 lg:p-6">
-      {/* Welcome Banner */}
-      <div className="bg-gradient-to-r from-emerald-600 to-teal-600 rounded-2xl p-6 mb-6 text-white">
-        <div className="flex items-center justify-between">
+    <div className="p-4 lg:p-6 space-y-6">
+      {/* Welcome Header with Date */}
+      <div className="bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-700 rounded-2xl p-6 text-white shadow-xl">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
+            <p className="text-emerald-200 text-sm font-medium mb-1">{formatDate()}</p>
             <h1 className="text-2xl lg:text-3xl font-bold mb-2">
               {getGreeting()}, {user?.firstName || 'Teacher'}! 👋
             </h1>
-            <p className="text-emerald-100">
-              {user?.designation || 'Teacher'} | {user?.department || 'Department'}
-            </p>
-            <p className="text-sm text-emerald-200 mt-1">
-              {school?.name || 'Your School'}
-            </p>
-          </div>
-          <div className="hidden lg:block">
-            <div className="w-24 h-24 rounded-full bg-white/20 flex items-center justify-center">
-              <BookOpen className="w-12 h-12 text-white" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {statsConfig.map((stat, idx) => {
-          const Icon = stat.icon;
-          return (
-            <div key={idx} className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-4 border border-slate-700">
-              <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg bg-slate-700/50 ${stat.color}`}>
-                  <Icon className="w-5 h-5" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-white">{stat.value}</p>
-                  <p className="text-sm text-slate-400">{stat.label}</p>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Quick Links */}
-      <h2 className="text-lg font-semibold text-white mb-4">Quick Actions</h2>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {quickLinks.map((link, idx) => {
-          const Icon = link.icon;
-          return (
-            <Link
-              key={idx}
-              to={link.path}
-              className={`bg-gradient-to-br ${link.color} rounded-xl p-4 text-white hover:scale-105 transition-transform`}
-            >
-              <Icon className="w-8 h-8 mb-2" />
-              <p className="font-semibold">{link.label}</p>
-            </Link>
-          );
-        })}
-      </div>
-
-      {/* Today's Schedule & Notices */}
-      <div className="grid lg:grid-cols-2 gap-6">
-        {/* Today's Schedule */}
-        <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-5 border border-slate-700">
-          <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <Clock className="w-5 h-5 text-emerald-400" />
-            Today's Schedule ({getDayOfWeek()})
-          </h3>
-          
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <RefreshCw className="w-6 h-6 animate-spin text-emerald-500" />
-            </div>
-          ) : getDayOfWeek() === 'Sunday' ? (
-            <div className="text-center py-8 text-slate-400">
-              <Calendar className="w-12 h-12 mx-auto mb-3 opacity-50" />
-              <p className="font-medium text-white">It's Sunday!</p>
-              <p className="text-sm mt-1">Enjoy your day off</p>
-            </div>
-          ) : todaySchedule.length === 0 ? (
-            <div className="text-center py-8 text-slate-400">
-              <Calendar className="w-12 h-12 mx-auto mb-3 opacity-50" />
-              <p className="font-medium">No classes today</p>
-              <Link 
-                to="/teacher/timetable" 
-                className="mt-4 inline-flex items-center gap-2 text-emerald-400 hover:text-emerald-300 text-sm font-medium"
-              >
-                View Full Timetable
-                <ChevronRight className="w-4 h-4" />
-              </Link>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {todaySchedule.slice(0, 5).map((entry, idx) => {
-                const colors = getSubjectColor(idx);
-                return (
-                  <div key={idx} className={`p-3 rounded-lg ${colors.bg} flex items-center gap-3`}>
-                    <div className="w-10 h-10 rounded-lg bg-slate-700/50 flex items-center justify-center text-white font-bold text-sm">
-                      P{entry.periodNumber}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={`font-semibold ${colors.text} truncate`}>{entry.subjectName || 'No Subject'}</p>
-                      <p className="text-xs text-slate-400">{entry.className}</p>
-                    </div>
-                    <div className="text-xs text-slate-400 text-right">
-                      {entry.startTime?.slice(0, 5) || '--:--'}
-                    </div>
-                  </div>
-                );
-              })}
-              {todaySchedule.length > 5 && (
-                <p className="text-center text-slate-400 text-sm">+{todaySchedule.length - 5} more classes</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="px-3 py-1 bg-white/20 rounded-full text-sm">
+                {user?.designation || 'Teacher'}
+              </span>
+              {user?.department && (
+                <span className="px-3 py-1 bg-white/10 rounded-full text-sm">
+                  {user.department}
+                </span>
               )}
-              <Link 
-                to="/teacher/timetable" 
-                className="mt-4 flex items-center justify-center gap-2 text-emerald-400 hover:text-emerald-300 text-sm font-medium py-2"
-              >
-                View Full Timetable
-                <ChevronRight className="w-4 h-4" />
-              </Link>
             </div>
-          )}
-        </div>
-
-        {/* Notices */}
-        <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-5 border border-slate-700">
-          <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <Bell className="w-5 h-5 text-amber-400" />
-            Recent Notices
-          </h3>
-          <div className="space-y-2">
-            {[
-              { title: 'Staff Meeting - Tomorrow 3 PM', date: '2 hours ago' },
-              { title: 'Submit Term Grades by Friday', date: '1 day ago' },
-            ].map((notice, idx) => (
-              <div key={idx} className="p-3 bg-slate-700/30 rounded-lg">
-                <p className="text-sm font-medium text-white">{notice.title}</p>
-                <p className="text-xs text-slate-400 mt-1">{notice.date}</p>
-              </div>
-            ))}
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="text-right hidden lg:block">
+              <p className="text-emerald-200 text-sm">School</p>
+              <p className="font-semibold">{school?.name || 'Your School'}</p>
+            </div>
+            <div className="w-16 h-16 lg:w-20 lg:h-20 rounded-full bg-white/20 flex items-center justify-center">
+              <GraduationCap className="w-8 h-8 lg:w-10 lg:h-10 text-white" />
+            </div>
           </div>
         </div>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-gradient-to-br from-blue-500/20 to-blue-600/10 backdrop-blur-sm rounded-xl p-4 border border-blue-500/20">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-3xl font-bold text-white">{stats.classes}</p>
+              <p className="text-sm text-blue-300">My Sections</p>
+            </div>
+            <div className="p-3 rounded-xl bg-blue-500/20">
+              <Users className="w-6 h-6 text-blue-400" />
+            </div>
+          </div>
+        </div>
+        
+        <div className="bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 backdrop-blur-sm rounded-xl p-4 border border-emerald-500/20">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-3xl font-bold text-white">{stats.periods}</p>
+              <p className="text-sm text-emerald-300">Periods/Week</p>
+            </div>
+            <div className="p-3 rounded-xl bg-emerald-500/20">
+              <Clock className="w-6 h-6 text-emerald-400" />
+            </div>
+          </div>
+        </div>
+        
+        <div className="bg-gradient-to-br from-purple-500/20 to-purple-600/10 backdrop-blur-sm rounded-xl p-4 border border-purple-500/20">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-3xl font-bold text-white">{stats.subjects}</p>
+              <p className="text-sm text-purple-300">Subjects</p>
+            </div>
+            <div className="p-3 rounded-xl bg-purple-500/20">
+              <BookOpen className="w-6 h-6 text-purple-400" />
+            </div>
+          </div>
+        </div>
+        
+        <div className="bg-gradient-to-br from-amber-500/20 to-amber-600/10 backdrop-blur-sm rounded-xl p-4 border border-amber-500/20">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-3xl font-bold text-white">{stats.today}</p>
+              <p className="text-sm text-amber-300">Today's Classes</p>
+            </div>
+            <div className="p-3 rounded-xl bg-amber-500/20">
+              <Calendar className="w-6 h-6 text-amber-400" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Quick Actions */}
+      <div>
+        <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <ChevronRight className="w-5 h-5 text-emerald-400" />
+          Quick Actions
+        </h2>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {quickLinks.map((link, idx) => {
+            const Icon = link.icon;
+            return (
+              <Link
+                key={idx}
+                to={link.path}
+                className={`bg-gradient-to-br ${link.color} rounded-xl p-4 text-white hover:scale-[1.02] hover:shadow-lg transition-all duration-200 group`}
+              >
+                <Icon className="w-8 h-8 mb-3 group-hover:scale-110 transition-transform" />
+                <p className="font-semibold text-sm">{link.label}</p>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Main Content Grid */}
+      <div className="grid lg:grid-cols-3 gap-6">
+        {/* Today's Schedule - Takes 2 columns */}
+        <div className="lg:col-span-2 bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700/50 overflow-hidden">
+          <div className="p-4 border-b border-slate-700/50 flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+              <Clock className="w-5 h-5 text-emerald-400" />
+              Today's Classes
+            </h3>
+            <Link 
+              to="/teacher/timetable" 
+              className="text-sm text-emerald-400 hover:text-emerald-300 flex items-center gap-1"
+            >
+              Full Timetable
+              <ChevronRight className="w-4 h-4" />
+            </Link>
+          </div>
+          
+          <div className="p-4">
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <RefreshCw className="w-6 h-6 animate-spin text-emerald-500" />
+              </div>
+            ) : getDayOfWeek() === 'Sunday' ? (
+              <div className="text-center py-12 text-slate-400">
+                <div className="w-16 h-16 bg-slate-700/50 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Calendar className="w-8 h-8 text-slate-500" />
+                </div>
+                <p className="font-semibold text-white text-lg">It's Sunday!</p>
+                <p className="text-sm mt-1">Enjoy your well-deserved day off</p>
+              </div>
+            ) : todaySchedule.length === 0 ? (
+              <div className="text-center py-12 text-slate-400">
+                <div className="w-16 h-16 bg-slate-700/50 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Calendar className="w-8 h-8 text-slate-500" />
+                </div>
+                <p className="font-semibold text-white">No classes scheduled</p>
+                <p className="text-sm mt-1">You have a free day today</p>
+              </div>
+            ) : (
+              <div className="grid gap-3">
+                {todaySchedule.map((entry, idx) => {
+                  const colors = getSubjectColor(idx);
+                  return (
+                    <div 
+                      key={idx} 
+                      className={`p-4 rounded-xl ${colors.bg} border ${colors.border} flex items-center gap-4`}
+                    >
+                      <div className="w-12 h-12 rounded-xl bg-slate-800/50 flex flex-col items-center justify-center text-white">
+                        <span className="text-xs text-slate-400">Period</span>
+                        <span className="font-bold text-lg">{entry.periodNumber}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`font-semibold ${colors.text} truncate`}>
+                          {entry.subjectName || 'No Subject'}
+                        </p>
+                        <p className="text-sm text-slate-400">{entry.className}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-medium text-white">
+                          {entry.startTime?.slice(0, 5) || '--:--'}
+                        </p>
+                        <p className="text-xs text-slate-400">
+                          {entry.endTime?.slice(0, 5) || '--:--'}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right Sidebar - Notices */}
+        <div className="space-y-6">
+          {/* Notices */}
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700/50 overflow-hidden">
+            <div className="p-4 border-b border-slate-700/50 flex items-center justify-between">
+              <h3 className="font-semibold text-white flex items-center gap-2">
+                <Bell className="w-5 h-5 text-amber-400" />
+                Notices
+              </h3>
+              <Link 
+                to="/teacher/notices" 
+                className="text-xs text-amber-400 hover:text-amber-300"
+              >
+                View All
+              </Link>
+            </div>
+            <div className="p-4 space-y-3">
+              {[
+                { title: 'Staff Meeting Tomorrow', time: '3:00 PM', type: 'meeting' },
+                { title: 'Submit Term Grades', time: 'Due Friday', type: 'deadline' },
+                { title: 'PTM Next Week', time: 'Saturday', type: 'event' },
+              ].map((notice, idx) => (
+                <div key={idx} className="p-3 bg-slate-700/30 rounded-lg hover:bg-slate-700/50 transition-colors cursor-pointer">
+                  <p className="text-sm font-medium text-white truncate">{notice.title}</p>
+                  <p className="text-xs text-slate-400 mt-1">{notice.time}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Quick Stats */}
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700/50 p-4">
+            <h3 className="font-semibold text-white mb-4 flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-blue-400" />
+              This Week
+            </h3>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-400">Attendance Taken</span>
+                <span className="text-sm font-medium text-emerald-400">85%</span>
+              </div>
+              <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
+                <div className="h-full w-[85%] bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full"></div>
+              </div>
+              <div className="flex items-center justify-between pt-2">
+                <span className="text-sm text-slate-400">Classes Completed</span>
+                <span className="text-sm font-medium text-blue-400">12/15</span>
+              </div>
+              <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
+                <div className="h-full w-[80%] bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Today's Duties Section - Compact Widget */}
+      <div>
+        <MyDuties
+          assigneeId={user?.id}
+          assigneeType="teacher"
+          showSupervised={true}
+          todayOnly={true}
+          title="Today's Duties"
+          accentColor="emerald"
+          onViewAll={() => navigate('/teacher/duties')}
+        />
       </div>
     </div>
   );

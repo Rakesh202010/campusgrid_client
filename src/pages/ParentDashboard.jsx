@@ -3,14 +3,17 @@ import { useNavigate, Link, Routes, Route, useLocation } from 'react-router-dom'
 import {
   Users, Home, User, Calendar, ClipboardList, FileText,
   CreditCard, Bell, LogOut, Menu, X, ChevronRight, ChevronDown,
-  Clock, Award, MessageSquare, Phone, CheckCircle2, BookOpen, GraduationCap, MapPin
+  Clock, Award, MessageSquare, Phone, CheckCircle2, BookOpen, GraduationCap, MapPin, ListTodo
 } from 'lucide-react';
 import { timetable, academicSessions } from '../services/api';
 import ParentTimetablePage from './parent/ParentTimetablePage';
+import MyDuties from '../components/MyDuties';
+import DutiesReport from './DutiesReport';
 
 const PARENT_MENU = [
   { id: 'home', label: 'Home', icon: Home, path: '/parent' },
   { id: 'children', label: 'My Children', icon: Users, path: '/parent/children' },
+  { id: 'duties', label: "Child's Duties", icon: ListTodo, path: '/parent/duties' },
   { id: 'attendance', label: 'Attendance', icon: CheckCircle2, path: '/parent/attendance' },
   { id: 'timetable', label: 'Timetable', icon: Clock, path: '/parent/timetable' },
   { id: 'exams', label: 'Exams & Results', icon: ClipboardList, path: '/parent/exams' },
@@ -227,7 +230,16 @@ const ParentDashboard = () => {
       {/* Main Content */}
       <main className="lg:ml-72 pt-16 lg:pt-0 min-h-screen">
         <Routes>
-          <Route index element={<ParentHome user={user} school={school} children={children} selectedChild={selectedChild} />} />
+          <Route index element={<ParentHome user={user} school={school} children={children} selectedChild={selectedChild} navigate={navigate} />} />
+          <Route path="duties" element={
+            <DutiesReport 
+              userType="parent" 
+              userId={selectedChild?.id} 
+              backPath="/parent" 
+              accentColor="amber"
+              children={children}
+            />
+          } />
           <Route path="timetable" element={
             <div className="p-4 lg:p-6">
               <ParentTimetablePage selectedChild={selectedChild} children={children} />
@@ -240,7 +252,7 @@ const ParentDashboard = () => {
           <Route path="notices" element={<ParentComingSoon title="Notices" />} />
           <Route path="messages" element={<ParentComingSoon title="Messages" />} />
           <Route path="contact" element={<ParentComingSoon title="Contact School" />} />
-          <Route path="*" element={<ParentHome user={user} school={school} children={children} selectedChild={selectedChild} />} />
+          <Route path="*" element={<ParentHome user={user} school={school} children={children} selectedChild={selectedChild} navigate={navigate} />} />
         </Routes>
       </main>
     </div>
@@ -268,7 +280,7 @@ const ParentComingSoon = ({ title }) => (
 );
 
 // Parent Home Component
-const ParentHome = ({ user, school, children, selectedChild }) => {
+const ParentHome = ({ user, school, children, selectedChild, navigate }) => {
   const [todaysSchedule, setTodaysSchedule] = useState([]);
   const [loadingTimetable, setLoadingTimetable] = useState(true);
   const [academicSession, setAcademicSession] = useState(null);
@@ -542,6 +554,21 @@ const ParentHome = ({ user, school, children, selectedChild }) => {
           Pay Now
         </Link>
       </div>
+
+      {/* Child's Today Duties */}
+      {children.length > 0 && (
+        <div className="mt-6">
+          <MyDuties
+            assigneeId={selectedChild?.id}
+            assigneeType="student"
+            todayOnly={true}
+            title="Today's Duties"
+            accentColor="amber"
+            childrenList={children}
+            onViewAll={() => navigate('/parent/duties')}
+          />
+        </div>
+      )}
     </div>
   );
 };

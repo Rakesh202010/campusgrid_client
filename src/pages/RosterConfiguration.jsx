@@ -57,7 +57,7 @@ const RosterConfiguration = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [assignmentViewMode, setAssignmentViewMode] = useState('calendar');
-  const [assignmentFilters, setAssignmentFilters] = useState({ assignee_type: '', duty_id: '' });
+  const [assignmentFilters, setAssignmentFilters] = useState({ assignee_type: '', duty_id: '', status: '' });
   
   // Modals
   const [showModal, setShowModal] = useState(false);
@@ -79,12 +79,19 @@ const RosterConfiguration = () => {
     time_slot_id: '',
     location_id: '',
     role_id: '',
-    notes: ''
+    notes: '',
+    require_acceptance: true
   });
   
   // Search/Filter
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
+  
+  // Per-date status modal for admin
+  const [showDatesModal, setShowDatesModal] = useState(false);
+  const [selectedAssignmentForDates, setSelectedAssignmentForDates] = useState(null);
+  const [assignmentDates, setAssignmentDates] = useState([]);
+  const [loadingDates, setLoadingDates] = useState(false);
 
   useEffect(() => {
     fetchAllData();
@@ -124,8 +131,10 @@ const RosterConfiguration = () => {
       setStaffList(staffRes.data || []);
       setStudentsList(studentsRes.data || []);
       
-      if (sessionRes.success && sessionRes.session) {
-        setAcademicSession(sessionRes.session);
+      if (sessionRes.success && sessionRes.data) {
+        setAcademicSession(sessionRes.data);
+      } else {
+        console.warn('No academic session found:', sessionRes);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -140,9 +149,17 @@ const RosterConfiguration = () => {
       const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
       const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
       
+      // Helper to format date as YYYY-MM-DD without timezone conversion
+      const formatLocalDate = (d) => {
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+      
       const params = {
-        start_date: startOfMonth.toISOString().split('T')[0],
-        end_date: endOfMonth.toISOString().split('T')[0],
+        start_date: formatLocalDate(startOfMonth),
+        end_date: formatLocalDate(endOfMonth),
         academic_session_id: academicSession?.id,
         ...assignmentFilters
       };
@@ -172,7 +189,8 @@ const RosterConfiguration = () => {
         time_slot_id: assignment.time_slot_id || '',
         location_id: assignment.location_id || '',
         role_id: assignment.role_id || '',
-        notes: assignment.notes || ''
+        notes: assignment.notes || '',
+        require_acceptance: assignment.requires_approval ?? false
       });
     } else {
       setEditingAssignment(null);
@@ -187,7 +205,8 @@ const RosterConfiguration = () => {
         time_slot_id: '',
         location_id: '',
         role_id: '',
-        notes: ''
+        notes: '',
+        require_acceptance: true
       });
     }
     setShowAssignmentModal(true);
@@ -199,9 +218,27 @@ const RosterConfiguration = () => {
       return;
     }
     
+    if (!academicSession?.id) {
+      toast.error('No academic session available. Please refresh the page.');
+      return;
+    }
+    
     setSaving(true);
     try {
-      const payload = { ...assignmentFormData, academic_session_id: academicSession?.id };
+      const payload = { 
+        ...assignmentFormData, 
+        academic_session_id: academicSession.id 
+      };
+      
+      // If editing a declined assignment with a new assignee, reset to pending
+      if (editingAssignment && 
+          editingAssignment.status === 'declined' && 
+          editingAssignment.assignee_id !== assignmentFormData.assignee_id) {
+        // Clear old decline notes when re-assigning
+        payload.notes = assignmentFormData.notes?.replace(/\[DECLINED:[^\]]*\]\s*/g, '').trim() || '';
+      }
+      
+      console.log('Saving assignment with payload:', payload);
       let result;
       if (editingAssignment) {
         result = await roster.updateAssignment(editingAssignment.id, payload);
@@ -237,6 +274,32 @@ const RosterConfiguration = () => {
     }
   };
 
+  // View per-date status for an assignment
+  const viewAssignmentDates = async (assignment) => {
+    setSelectedAssignmentForDates(assignment);
+    setShowDatesModal(true);
+    setLoadingDates(true);
+    try {
+      const result = await roster.getAssignmentDates(assignment.id);
+      if (result.success) {
+        setAssignmentDates(result.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching assignment dates:', error);
+      toast.error('Failed to load date details');
+    } finally {
+      setLoadingDates(false);
+    }
+  };
+
+  // Check if assignment is multi-day
+  const isMultiDayAssignment = (assignment) => {
+    if (!assignment.start_date || !assignment.end_date) return false;
+    const start = new Date(assignment.start_date);
+    const end = new Date(assignment.end_date);
+    return end > start;
+  };
+
   const getAssigneeOptions = () => {
     switch (assignmentFormData.assignee_type) {
       case 'teacher':
@@ -251,11 +314,31 @@ const RosterConfiguration = () => {
   };
 
   const getAssignmentsForDate = (date) => {
-    const dateStr = date.toISOString().split('T')[0];
+    // Use local date string to avoid timezone issues
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
+    
     return assignments.filter(a => {
       const start = a.start_date?.split('T')[0];
       const end = a.end_date?.split('T')[0] || start;
       return dateStr >= start && dateStr <= end;
+    }).map(a => {
+      // For multi-day assignments with per-date tracking, get the status for this specific date
+      if (a.dates && a.dates.length > 0) {
+        const dateRecord = a.dates.find(d => d.date?.split('T')[0] === dateStr);
+        if (dateRecord) {
+          // Return assignment with the specific date's status
+          return {
+            ...a,
+            date_status: dateRecord.status,
+            date_decline_reason: dateRecord.decline_reason,
+            date_accepted_at: dateRecord.accepted_at
+          };
+        }
+      }
+      return a;
     });
   };
 
@@ -286,7 +369,30 @@ const RosterConfiguration = () => {
     setEditingItem(item);
     
     if (item) {
-      setFormData({ ...item });
+      // When editing a duty, the backend already parses allowed_assignee_types correctly
+      if (type === 'duty') {
+        // Backend now returns allowed_assignee_types as a proper array
+        // Just ensure it's valid and has at least one item
+        let assigneeTypes = item.allowed_assignee_types;
+        console.log('[DEBUG FE] allowed_assignee_types from API:', assigneeTypes);
+        
+        if (!assigneeTypes || !Array.isArray(assigneeTypes) || assigneeTypes.length === 0) {
+          assigneeTypes = ['teacher', 'staff'];
+        }
+        
+        console.log('[DEBUG FE] Final allowed_assignee_types:', assigneeTypes);
+        
+        setFormData({ 
+          ...item, 
+          allowed_assignee_types: assigneeTypes,
+          category_id: item.category_id || '',
+          roster_type_id: item.roster_type_id || '',
+          default_time_slot_id: item.default_time_slot_id || '',
+          default_location_id: item.default_location_id || ''
+        });
+      } else {
+        setFormData({ ...item });
+      }
     } else {
       // Default form data based on type
       switch (type) {
@@ -622,6 +728,19 @@ const RosterConfiguration = () => {
                       <option key={d.id} value={d.id}>{d.name}</option>
                     ))}
                   </select>
+                  <select
+                    value={assignmentFilters.status}
+                    onChange={(e) => setAssignmentFilters({ ...assignmentFilters, status: e.target.value })}
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  >
+                    <option value="">All Statuses</option>
+                    <option value="scheduled">Scheduled</option>
+                    <option value="active">Active</option>
+                    <option value="pending_acceptance">Pending Acceptance</option>
+                    <option value="declined">Declined</option>
+                    <option value="completed">Completed</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
                   <button
                     onClick={() => openAssignmentModal()}
                     className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2"
@@ -645,6 +764,27 @@ const RosterConfiguration = () => {
                     <button onClick={() => navigateMonth(1)} className="p-2 hover:bg-gray-200 rounded-lg">
                       <ChevronRight className="w-5 h-5" />
                     </button>
+                  </div>
+                  
+                  {/* Calendar Legend */}
+                  <div className="flex items-center gap-4 px-4 py-2 bg-white border-b border-gray-100 text-xs">
+                    <span className="text-gray-500 font-medium">Status:</span>
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 rounded" style={{ backgroundColor: '#DBEAFE', border: '1px solid #BFDBFE' }}></div>
+                      <span className="text-gray-600">Accepted</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 rounded" style={{ backgroundColor: '#FEF3C7', border: '1px solid #FDE68A' }}></div>
+                      <span className="text-gray-600">Pending</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 rounded" style={{ backgroundColor: '#FEE2E2', border: '1px solid #FECACA' }}></div>
+                      <span className="text-gray-600">Declined</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 rounded" style={{ backgroundColor: '#D1FAE5', border: '1px solid #A7F3D0' }}></div>
+                      <span className="text-gray-600">Completed</span>
+                    </div>
                   </div>
                   
                   <div className="grid grid-cols-7 border-b border-gray-200">
@@ -680,16 +820,57 @@ const RosterConfiguration = () => {
                             {date.getDate()}
                           </div>
                           <div className="space-y-0.5 overflow-hidden max-h-16">
-                            {dateAssignments.slice(0, 2).map(assignment => (
-                              <div
-                                key={assignment.id}
-                                onClick={(e) => { e.stopPropagation(); openAssignmentModal(assignment); }}
-                                className="text-xs px-1 py-0.5 rounded truncate"
-                                style={{ backgroundColor: assignment.roster_type_color || '#E5E7EB', color: '#374151' }}
-                              >
-                                {assignment.duty_name}
-                              </div>
-                            ))}
+                            {dateAssignments.slice(0, 2).map(assignment => {
+                              // Use per-date status if available (for multi-day assignments), otherwise use assignment status
+                              const effectiveStatus = assignment.date_status || assignment.status;
+                              
+                              // Get status-specific styling with more detailed statuses
+                              let statusStyles = { backgroundColor: assignment.roster_type_color || '#E5E7EB', color: '#374151' };
+                              let statusLabel = '';
+                              let StatusIcon = null;
+                              
+                              if (effectiveStatus === 'declined') {
+                                statusStyles = { backgroundColor: '#FEE2E2', color: '#B91C1C', border: '1px solid #FECACA' };
+                                statusLabel = ' (DECLINED)';
+                                StatusIcon = AlertCircle;
+                              } else if (effectiveStatus === 'pending_acceptance') {
+                                statusStyles = { backgroundColor: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A' };
+                                statusLabel = ' (PENDING)';
+                                StatusIcon = Clock;
+                              } else if (effectiveStatus === 'accepted' || effectiveStatus === 'scheduled') {
+                                statusStyles = { backgroundColor: '#DBEAFE', color: '#1E40AF', border: '1px solid #BFDBFE' };
+                                statusLabel = ' (ACCEPTED)';
+                                StatusIcon = CheckCircle;
+                              } else if (effectiveStatus === 'completed') {
+                                statusStyles = { backgroundColor: '#D1FAE5', color: '#065F46', border: '1px solid #A7F3D0' };
+                                statusLabel = ' (COMPLETED)';
+                                StatusIcon = CheckCircle;
+                              } else if (effectiveStatus === 'active') {
+                                statusStyles = { backgroundColor: '#D1FAE5', color: '#065F46', border: '1px solid #A7F3D0' };
+                                statusLabel = '';
+                                StatusIcon = null;
+                              }
+                              
+                              return (
+                                <div
+                                  key={assignment.id}
+                                  onClick={(e) => { e.stopPropagation(); openAssignmentModal(assignment); }}
+                                  className="text-xs px-1.5 py-0.5 rounded truncate flex items-center gap-1"
+                                  style={statusStyles}
+                                  title={`${assignment.duty_name || 'Duty'} - ${assignment.assignee_name || 'Unassigned'}${statusLabel}${assignment.date_decline_reason ? ` Reason: ${assignment.date_decline_reason}` : ''}`}
+                                >
+                                  {StatusIcon && <StatusIcon className="w-2.5 h-2.5 flex-shrink-0" />}
+                                  {!StatusIcon && (
+                                    <>
+                                      {assignment.assignee_type === 'teacher' && <UserCheck className="w-2.5 h-2.5 flex-shrink-0" />}
+                                      {assignment.assignee_type === 'staff' && <Briefcase className="w-2.5 h-2.5 flex-shrink-0" />}
+                                      {assignment.assignee_type === 'student' && <GraduationCap className="w-2.5 h-2.5 flex-shrink-0" />}
+                                    </>
+                                  )}
+                                  <span className="truncate font-medium">{assignment.assignee_name?.split(' ')[0] || assignment.duty_name}</span>
+                                </div>
+                              );
+                            })}
                             {dateAssignments.length > 2 && (
                               <div className="text-xs text-gray-500 px-1">+{dateAssignments.length - 2} more</div>
                             )}
@@ -728,33 +909,76 @@ const RosterConfiguration = () => {
                         assignments.map(assignment => (
                           <tr key={assignment.id} className="hover:bg-gray-50">
                             <td className="px-4 py-3">
-                              <div className="font-medium text-gray-900">{assignment.duty_name}</div>
+                              <div className="font-medium text-gray-900">{assignment.duty_name || assignment.roster_type_name}</div>
                               <div className="text-xs text-gray-500">{assignment.roster_type_name}</div>
                             </td>
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-2">
-                                {assignment.assignee_type === 'teacher' && <UserCheck className="w-4 h-4 text-blue-600" />}
-                                {assignment.assignee_type === 'staff' && <Briefcase className="w-4 h-4 text-purple-600" />}
-                                {assignment.assignee_type === 'student' && <GraduationCap className="w-4 h-4 text-green-600" />}
-                                <span className="text-gray-900">{assignment.assignee_name || '-'}</span>
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${
+                                  assignment.assignee_type === 'teacher' ? 'bg-blue-500' :
+                                  assignment.assignee_type === 'staff' ? 'bg-purple-500' :
+                                  'bg-green-500'
+                                }`}>
+                                  {assignment.assignee_name ? assignment.assignee_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '?'}
+                                </div>
+                                <div>
+                                  <div className="font-medium text-gray-900">{assignment.assignee_name || 'Unassigned'}</div>
+                                  <div className="text-xs text-gray-500 capitalize flex items-center gap-1">
+                                    {assignment.assignee_type === 'teacher' && <UserCheck className="w-3 h-3" />}
+                                    {assignment.assignee_type === 'staff' && <Briefcase className="w-3 h-3" />}
+                                    {assignment.assignee_type === 'student' && <GraduationCap className="w-3 h-3" />}
+                                    {assignment.assignee_type}
+                                  </div>
+                                </div>
                               </div>
                             </td>
                             <td className="px-4 py-3 text-gray-700">{assignment.time_slot_name || '-'}</td>
                             <td className="px-4 py-3 text-gray-700">{assignment.location_name || '-'}</td>
                             <td className="px-4 py-3 text-gray-900">
-                              {new Date(assignment.start_date).toLocaleDateString()}
+                              {new Date(assignment.start_date + 'T00:00:00').toLocaleDateString()}
                             </td>
                             <td className="px-4 py-3">
-                              <span className={`px-2 py-1 text-xs rounded-full ${
-                                assignment.status === 'scheduled' ? 'bg-blue-100 text-blue-700' :
-                                assignment.status === 'active' ? 'bg-green-100 text-green-700' :
-                                'bg-gray-100 text-gray-700'
-                              }`}>
-                                {assignment.status}
-                              </span>
+                              <div className="flex flex-col">
+                                <span className={`px-2 py-1 text-xs rounded-full inline-block w-fit ${
+                                  assignment.status === 'scheduled' ? 'bg-blue-100 text-blue-700' :
+                                  assignment.status === 'active' ? 'bg-green-100 text-green-700' :
+                                  assignment.status === 'pending_acceptance' ? 'bg-amber-100 text-amber-700' :
+                                  assignment.status === 'declined' ? 'bg-red-100 text-red-700' :
+                                  assignment.status === 'completed' ? 'bg-slate-100 text-slate-700' :
+                                  'bg-gray-100 text-gray-700'
+                                }`}>
+                                  {assignment.status === 'pending_acceptance' ? 'Pending Acceptance' : 
+                                   assignment.status === 'declined' ? 'Declined' : assignment.status}
+                                </span>
+                                {assignment.status === 'declined' && assignment.notes?.includes('[DECLINED:') && (
+                                  <span className="text-xs text-red-600 mt-1 max-w-[200px] truncate" title={assignment.notes?.match(/\[DECLINED: ([^\]]+)\]/)?.[1]}>
+                                    Reason: {assignment.notes?.match(/\[DECLINED: ([^\]]+)\]/)?.[1] || 'Not provided'}
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="px-4 py-3 text-right">
                               <div className="flex items-center justify-end gap-1">
+                                {isMultiDayAssignment(assignment) && (
+                                  <button 
+                                    onClick={() => viewAssignmentDates(assignment)} 
+                                    className="px-2 py-1 text-xs text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg flex items-center gap-1"
+                                    title="View per-date acceptance status"
+                                  >
+                                    <CalendarDays className="w-3 h-3" />
+                                    Dates
+                                  </button>
+                                )}
+                                {assignment.status === 'declined' && (
+                                  <button 
+                                    onClick={() => openAssignmentModal(assignment)} 
+                                    className="px-2 py-1 text-xs text-white bg-amber-600 hover:bg-amber-700 rounded-lg flex items-center gap-1"
+                                    title="Re-assign to another person"
+                                  >
+                                    <Users className="w-3 h-3" />
+                                    Re-assign
+                                  </button>
+                                )}
                                 <button onClick={() => openAssignmentModal(assignment)} className="p-1.5 text-gray-600 hover:bg-gray-100 rounded-lg">
                                   <Edit2 className="w-4 h-4" />
                                 </button>
@@ -811,24 +1035,60 @@ const RosterConfiguration = () => {
                         ) : (
                           <div className="divide-y divide-gray-100">
                             {slotAssignments.map(assignment => (
-                              <div key={assignment.id} className="p-4 flex items-center justify-between">
+                              <div key={assignment.id} className="p-4 flex items-center justify-between hover:bg-gray-50">
                                 <div className="flex items-center gap-4">
-                                  <div className="w-2 h-10 rounded-full" style={{ backgroundColor: assignment.roster_type_color || '#6B7280' }} />
+                                  <div className="w-1.5 h-14 rounded-full" style={{ backgroundColor: assignment.roster_type_color || '#6B7280' }} />
+                                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold ${
+                                    assignment.assignee_type === 'teacher' ? 'bg-blue-500' :
+                                    assignment.assignee_type === 'staff' ? 'bg-purple-500' :
+                                    'bg-green-500'
+                                  }`}>
+                                    {assignment.assignee_name ? assignment.assignee_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '?'}
+                                  </div>
                                   <div>
-                                    <div className="font-medium text-gray-900">{assignment.duty_name}</div>
-                                    <div className="text-sm text-gray-500 flex items-center gap-2">
-                                      {assignment.assignee_type === 'teacher' && <UserCheck className="w-3 h-3" />}
-                                      {assignment.assignee_type === 'staff' && <Briefcase className="w-3 h-3" />}
-                                      {assignment.assignee_name || 'Unassigned'}
+                                    <div className="font-semibold text-gray-900">{assignment.assignee_name || 'Unassigned'}</div>
+                                    <div className="text-sm text-gray-600">{assignment.duty_name || assignment.roster_type_name}</div>
+                                    <div className="text-xs text-gray-400 flex items-center gap-2 mt-0.5">
+                                      {assignment.assignee_type === 'teacher' && <><UserCheck className="w-3 h-3" /> Teacher</>}
+                                      {assignment.assignee_type === 'staff' && <><Briefcase className="w-3 h-3" /> Staff</>}
+                                      {assignment.assignee_type === 'student' && <><GraduationCap className="w-3 h-3" /> Student</>}
+                                      {assignment.role_name && <span className="ml-2">• {assignment.role_name}</span>}
                                     </div>
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-4">
                                   {assignment.location_name && (
-                                    <span className="text-sm text-gray-500 flex items-center gap-1">
+                                    <span className="text-sm text-gray-500 flex items-center gap-1 bg-gray-100 px-2 py-1 rounded">
                                       <MapPin className="w-4 h-4" />
                                       {assignment.location_name}
                                     </span>
+                                  )}
+                                  <div className="flex flex-col items-end">
+                                    <span className={`px-2 py-1 text-xs rounded-full ${
+                                      assignment.status === 'scheduled' ? 'bg-blue-100 text-blue-700' :
+                                      assignment.status === 'active' ? 'bg-green-100 text-green-700' :
+                                      assignment.status === 'pending_acceptance' ? 'bg-amber-100 text-amber-700' :
+                                      assignment.status === 'declined' ? 'bg-red-100 text-red-700' :
+                                      assignment.status === 'completed' ? 'bg-slate-100 text-slate-700' :
+                                      'bg-gray-100 text-gray-700'
+                                    }`}>
+                                      {assignment.status === 'pending_acceptance' ? 'Pending' : 
+                                       assignment.status === 'declined' ? 'Declined' : assignment.status}
+                                    </span>
+                                    {assignment.status === 'declined' && assignment.notes?.includes('[DECLINED:') && (
+                                      <span className="text-xs text-red-500 mt-1" title={assignment.notes?.match(/\[DECLINED: ([^\]]+)\]/)?.[1]}>
+                                        {assignment.notes?.match(/\[DECLINED: ([^\]]+)\]/)?.[1]?.slice(0, 30) || 'No reason'}...
+                                      </span>
+                                    )}
+                                  </div>
+                                  {assignment.status === 'declined' && (
+                                    <button 
+                                      onClick={() => openAssignmentModal(assignment)} 
+                                      className="px-2 py-1 text-xs text-white bg-amber-600 hover:bg-amber-700 rounded-lg flex items-center gap-1"
+                                    >
+                                      <Users className="w-3 h-3" />
+                                      Re-assign
+                                    </button>
                                   )}
                                   <button onClick={() => openAssignmentModal(assignment)} className="p-1.5 text-gray-600 hover:bg-gray-100 rounded-lg">
                                     <Edit2 className="w-4 h-4" />
@@ -2007,6 +2267,27 @@ const RosterConfiguration = () => {
                   placeholder="Additional notes..."
                 />
               </div>
+
+              {/* Require Acceptance */}
+              <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                <input
+                  type="checkbox"
+                  id="require_acceptance"
+                  checked={assignmentFormData.require_acceptance}
+                  onChange={(e) => setAssignmentFormData({ ...assignmentFormData, require_acceptance: e.target.checked })}
+                  className="w-4 h-4 text-amber-600 border-gray-300 rounded focus:ring-amber-500"
+                />
+                <div>
+                  <label htmlFor="require_acceptance" className="text-sm font-medium text-amber-900 cursor-pointer">
+                    Require Acceptance
+                  </label>
+                  <p className="text-xs text-amber-700">
+                    {assignmentFormData.assignee_type === 'student' 
+                      ? 'The supervisor must accept before the duty is active' 
+                      : 'The assignee must accept before the duty is active'}
+                  </p>
+                </div>
+              </div>
             </div>
 
             <div className="p-6 border-t border-gray-200 bg-gray-50 flex justify-end gap-3">
@@ -2023,6 +2304,127 @@ const RosterConfiguration = () => {
               >
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                 {editingAssignment ? 'Update' : 'Create'} Assignment
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Per-Date Status Modal for Admin */}
+      {showDatesModal && selectedAssignmentForDates && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] overflow-hidden">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Per-Date Acceptance Status</h2>
+                  <p className="text-sm text-gray-500 mt-1">
+                    {selectedAssignmentForDates.duty_name || selectedAssignmentForDates.roster_type_name} - {selectedAssignmentForDates.assignee_full_name || 'Assignee'}
+                  </p>
+                </div>
+                <button onClick={() => setShowDatesModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              {/* Summary Stats */}
+              {assignmentDates.length > 0 && (
+                <div className="mt-4 grid grid-cols-4 gap-3">
+                  <div className="bg-gray-50 rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-gray-900">{assignmentDates.length}</div>
+                    <div className="text-xs text-gray-500">Total Days</div>
+                  </div>
+                  <div className="bg-green-50 rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-green-600">
+                      {assignmentDates.filter(d => d.status === 'accepted').length}
+                    </div>
+                    <div className="text-xs text-green-600">Accepted</div>
+                  </div>
+                  <div className="bg-amber-50 rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-amber-600">
+                      {assignmentDates.filter(d => d.status === 'pending_acceptance').length}
+                    </div>
+                    <div className="text-xs text-amber-600">Pending</div>
+                  </div>
+                  <div className="bg-red-50 rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-red-600">
+                      {assignmentDates.filter(d => d.status === 'declined').length}
+                    </div>
+                    <div className="text-xs text-red-600">Declined</div>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="p-6 overflow-y-auto max-h-[50vh]">
+              {loadingDates ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+                </div>
+              ) : assignmentDates.length === 0 ? (
+                <p className="text-center text-gray-500 py-8">No date records found</p>
+              ) : (
+                <div className="space-y-2">
+                  {assignmentDates.map((dateRecord) => {
+                    let dateObj;
+                    if (typeof dateRecord.date === 'string') {
+                      const dateOnly = dateRecord.date.split('T')[0];
+                      dateObj = new Date(dateOnly + 'T12:00:00');
+                    } else {
+                      dateObj = new Date(dateRecord.date);
+                    }
+                    const dateStr = dateObj.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
+                    
+                    return (
+                      <div 
+                        key={dateRecord.id} 
+                        className={`flex items-center justify-between p-4 rounded-lg border ${
+                          dateRecord.status === 'accepted' ? 'bg-green-50 border-green-200' :
+                          dateRecord.status === 'declined' ? 'bg-red-50 border-red-200' :
+                          dateRecord.status === 'completed' ? 'bg-slate-50 border-slate-200' :
+                          'bg-amber-50 border-amber-200'
+                        }`}
+                      >
+                        <div>
+                          <div className="font-medium text-gray-900">{dateStr}</div>
+                          {dateRecord.status === 'accepted' && dateRecord.accepted_at && (
+                            <div className="text-xs text-green-600 mt-1">
+                              Accepted on {new Date(dateRecord.accepted_at).toLocaleDateString()}
+                            </div>
+                          )}
+                          {dateRecord.status === 'declined' && (
+                            <div className="text-xs text-red-600 mt-1">
+                              {dateRecord.decline_reason || 'No reason provided'}
+                            </div>
+                          )}
+                          {dateRecord.status === 'completed' && dateRecord.completed_at && (
+                            <div className="text-xs text-slate-600 mt-1">
+                              Completed on {new Date(dateRecord.completed_at).toLocaleDateString()}
+                            </div>
+                          )}
+                        </div>
+                        <span className={`px-3 py-1 text-sm rounded-full font-medium ${
+                          dateRecord.status === 'accepted' ? 'bg-green-100 text-green-700' :
+                          dateRecord.status === 'declined' ? 'bg-red-100 text-red-700' :
+                          dateRecord.status === 'completed' ? 'bg-slate-100 text-slate-700' :
+                          'bg-amber-100 text-amber-700'
+                        }`}>
+                          {dateRecord.status === 'pending_acceptance' ? 'Pending' : 
+                           dateRecord.status.charAt(0).toUpperCase() + dateRecord.status.slice(1)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            
+            <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-end">
+              <button
+                onClick={() => setShowDatesModal(false)}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+              >
+                Close
               </button>
             </div>
           </div>
